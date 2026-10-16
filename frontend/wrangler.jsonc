@@ -1,6 +1,6 @@
 {
   // Cloudflare Workers static assets: serves the built site from ./dist
-  "name": "khoa-tieng-anh-hvu",
+  "name": "khoangoaingu",
   "compatibility_date": "2026-10-16",
   "assets": {
     "directory": "./dist/",
