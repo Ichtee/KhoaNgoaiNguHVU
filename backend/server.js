@@ -4,13 +4,12 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 require('dotenv').config();
-const { connect, syncCredentials, Category, Page, Post, Setting, Session } = require('./db');
+const { connect, checkPassword, Category, Page, Post, Setting, Session, Admin } = require('./db');
 
-const { ADMIN_USER = 'admin', ADMIN_PASSWORD, PORT = 5000 } = process.env;
+const { PORT = 5000 } = process.env;
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI; // both names are common
-const missing = [!ADMIN_PASSWORD && 'ADMIN_PASSWORD', !MONGODB_URI && 'MONGO_URI'].filter(Boolean);
-if (missing.length) {
-  console.error(`Thiếu biến môi trường: ${missing.join(', ')}`);
+if (!MONGODB_URI) {
+  console.error('Thiếu biến môi trường: MONGO_URI (chuỗi kết nối MongoDB, dạng mongodb+srv://...)');
   console.error('Chạy ở máy: đặt trong backend/.env. Chạy trên Render: đặt ở mục Environment của dịch vụ rồi bấm Save.');
   process.exit(1);
 }
@@ -30,9 +29,6 @@ app.use('/uploads', express.static(UPLOADS, { setHeaders: (res) => res.setHeader
 // lets route handlers be async without a try/catch each; failures reach the error handler at the bottom
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const HIDE = '-_id -__v';
-
-const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
-const same = (a, b) => crypto.timingSafeEqual(sha(a), sha(b));
 
 // Logged-in admins hold a random token; the database knows its hash and when it expires (see Session in db.js).
 const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -110,7 +106,8 @@ app.post('/api/login', wrap(async (req, res) => {
     return res.status(429).json({ message: `Nhập sai quá nhiều lần. Hãy thử lại sau ${minutes} phút.` });
   }
   const { username, password } = req.body;
-  if (same(username, ADMIN_USER) && same(password, ADMIN_PASSWORD)) {
+  const account = await Admin.findOne({ username: String(username || '').trim().toLowerCase() }).lean();
+  if (await checkPassword(password, account)) {
     fails.delete(req.ip);
     const token = crypto.randomBytes(32).toString('base64url');
     await Session.create({ tokenHash: hashToken(token), expiresAt: new Date(Date.now() + SESSION_MS) });
@@ -295,7 +292,10 @@ app.use((err, req, res, next) => {
 });
 
 connect(MONGODB_URI)
-  .then(() => syncCredentials(ADMIN_USER, ADMIN_PASSWORD))
+  .then(async () => {
+    // the public site works without an admin; the log just says how to create one
+    if (!(await Admin.exists({}))) console.warn('Chưa có tài khoản quản trị. Tạo bằng lệnh: npm run set-admin (chạy ở máy có quyền vào cơ sở dữ liệu).');
+  })
   .then(() => app.listen(PORT, () => console.log(`API chạy tại http://localhost:${PORT}`)))
   .catch((err) => {
     console.error(`Không khởi động được: ${err.message}`);

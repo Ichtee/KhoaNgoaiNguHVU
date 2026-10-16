@@ -52,18 +52,25 @@ const sessionSchema = new Schema({ tokenHash: unique, expiresAt: { type: Date, r
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // MongoDB deletes expired sessions by itself
 const Session = mongoose.model('Session', sessionSchema);
 
-// A fingerprint of the admin login the sessions were created under. Kept apart from Setting, which the public API returns.
-const Auth = mongoose.model('Auth', new Schema({ key: unique, salt: String, check: String }));
+// The admin account lives in the database. There is no web page or API to create or change it: only someone who can reach
+// the database can (npm run set-admin). Only a salted scrypt hash of the password is stored, never the password.
+const Admin = mongoose.model('Admin', new Schema({ username: unique, salt: { type: String, required: true }, hash: { type: String, required: true } }));
 
-// Everyone is signed out when ADMIN_USER or ADMIN_PASSWORD has changed since the last start, so changing the password locks out
-// anyone who still has an old session (a person who left the team, a lost laptop).
-// ponytail: noticed at startup only; Render restarts the service after an environment change, which is when this runs.
-async function syncCredentials(user, password) {
-  const doc = (await Auth.findOne({ key: 'admin' }).lean()) || { salt: crypto.randomBytes(16).toString('hex') };
-  const check = crypto.scryptSync(`${user}\n${password}`, doc.salt, 32).toString('hex'); // slow on purpose: stored, so it must resist guessing
-  if (doc.check === check) return;
-  await Session.deleteMany({});
-  await Auth.updateOne({ key: 'admin' }, { salt: doc.salt, check }, { upsert: true });
+const scrypt = (password, salt) => new Promise((resolve, reject) => {
+  crypto.scrypt(String(password), salt, 64, (err, key) => (err ? reject(err) : resolve(key)));
+});
+
+async function newCredential(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return { salt, hash: (await scrypt(password, salt)).toString('hex') };
+}
+
+// Always does the same work, found or not, so response time does not reveal whether a username exists.
+const NOBODY = { salt: '00'.repeat(16), hash: '00'.repeat(64) };
+async function checkPassword(password, account) {
+  const { salt, hash } = account || NOBODY;
+  const ok = crypto.timingSafeEqual(await scrypt(password, salt), Buffer.from(hash, 'hex'));
+  return Boolean(account) && ok;
 }
 
 // insert-if-missing, so a seed that was interrupted can simply run again
@@ -86,10 +93,10 @@ async function seedOnce() {
 
 async function connect(uri) {
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
-  await Promise.all([Category, Page, Post, Setting, Session, Auth].map((m) => m.init())); // unique indexes exist before the first request
+  await Promise.all([Category, Page, Post, Setting, Session, Admin].map((m) => m.init())); // unique indexes exist before the first request
   await seedOnce();
   // posts made before the overwrite guard existed: their creation time counts as the last save, so even their first edit is protected
   await Post.updateMany({ updatedAt: null }, [{ $set: { updatedAt: '$createdAt' } }]);
 }
 
-module.exports = { connect, syncCredentials, Category, Page, Post, Setting, Session };
+module.exports = { connect, newCredential, checkPassword, Category, Page, Post, Setting, Session, Admin };
