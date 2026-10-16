@@ -8,7 +8,7 @@
     "web": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "vite build && wrangler deploy"
+    "deploy": "vite build && wrangler pages deploy --branch main --commit-dirty=true"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",

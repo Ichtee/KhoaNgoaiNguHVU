@@ -1,10 +1,8 @@
 {
-  // Cloudflare Workers static assets: serves the built site from ./dist
+  // Cloudflare Pages: publishes the built site from ./dist as https://khoangoaingu.pages.dev
+  // Paths that exist only in the browser (/quan-tri, /muc/dao-tao) return index.html by themselves,
+  // as long as the site has no 404.html of its own.
   "name": "khoangoaingu",
-  "compatibility_date": "2026-10-16",
-  "assets": {
-    "directory": "./dist/",
-    // pages like /quan-tri or /muc/dao-tao exist only in the browser, so unknown paths must return index.html
-    "not_found_handling": "single-page-application"
-  }
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-10-16"
 }
