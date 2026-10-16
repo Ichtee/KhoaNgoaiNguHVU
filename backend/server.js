@@ -9,12 +9,10 @@ const { connect, Category, Page, Post, Setting } = require('./db');
 
 const { ADMIN_USER = 'admin', ADMIN_PASSWORD, JWT_SECRET, PORT = 5000 } = process.env;
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI; // both names are common
-if (!ADMIN_PASSWORD || !JWT_SECRET) {
-  console.error('Thiếu ADMIN_PASSWORD hoặc JWT_SECRET trong backend/.env');
-  process.exit(1);
-}
-if (!MONGODB_URI) {
-  console.error('Thiếu MONGODB_URI (hoặc MONGO_URI) trong backend/.env: chuỗi kết nối MongoDB, dạng mongodb+srv://...');
+const missing = [!ADMIN_PASSWORD && 'ADMIN_PASSWORD', !JWT_SECRET && 'JWT_SECRET', !MONGODB_URI && 'MONGO_URI'].filter(Boolean);
+if (missing.length) {
+  console.error(`Thiếu biến môi trường: ${missing.join(', ')}`);
+  console.error('Chạy ở máy: đặt trong backend/.env. Chạy trên Render: đặt ở mục Environment của dịch vụ rồi bấm Save.');
   process.exit(1);
 }
 
