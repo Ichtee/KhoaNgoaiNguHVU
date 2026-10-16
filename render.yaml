@@ -1,0 +1,24 @@
+# Render Blueprint: creates the backend web service from the backend/ folder.
+# Secrets are never stored here: "sync: false" makes Render ask for the value once, when the Blueprint is created.
+services:
+  - type: web
+    name: khoa-tieng-anh-api
+    runtime: node
+    rootDir: backend
+    region: singapore # closest to Vietnam; keep the Atlas cluster in a nearby region too
+    plan: free # sleeps after 15 minutes without traffic; switch to a paid plan for the real site
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/categories
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      # the website address, e.g. https://xxx.workers.dev (enter a placeholder first, set the real one after the frontend is deployed)
+      - key: CORS_ORIGIN
+        sync: false
