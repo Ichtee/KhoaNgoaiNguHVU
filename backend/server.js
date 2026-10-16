@@ -3,13 +3,12 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
 require('dotenv').config();
-const { connect, Category, Page, Post, Setting } = require('./db');
+const { connect, syncCredentials, Category, Page, Post, Setting, Session } = require('./db');
 
-const { ADMIN_USER = 'admin', ADMIN_PASSWORD, JWT_SECRET, PORT = 5000 } = process.env;
+const { ADMIN_USER = 'admin', ADMIN_PASSWORD, PORT = 5000 } = process.env;
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI; // both names are common
-const missing = [!ADMIN_PASSWORD && 'ADMIN_PASSWORD', !JWT_SECRET && 'JWT_SECRET', !MONGODB_URI && 'MONGO_URI'].filter(Boolean);
+const missing = [!ADMIN_PASSWORD && 'ADMIN_PASSWORD', !MONGODB_URI && 'MONGO_URI'].filter(Boolean);
 if (missing.length) {
   console.error(`Thiếu biến môi trường: ${missing.join(', ')}`);
   console.error('Chạy ở máy: đặt trong backend/.env. Chạy trên Render: đặt ở mục Environment của dịch vụ rồi bấm Save.');
@@ -35,14 +34,16 @@ const HIDE = '-_id -__v';
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
 const same = (a, b) => crypto.timingSafeEqual(sha(a), sha(b));
 
-const admin = (req, res, next) => {
-  try {
-    jwt.verify((req.headers.authorization || '').replace('Bearer ', ''), JWT_SECRET);
-    next();
-  } catch {
-    res.status(401).json({ message: 'Vui lòng đăng nhập quản trị' });
-  }
-};
+// Logged-in admins hold a random token; the database knows its hash and when it expires (see Session in db.js).
+const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+const hashToken = (t) => crypto.createHash('sha256').update(String(t)).digest('hex');
+const bearer = (req) => (req.headers.authorization || '').replace(/^Bearer /, '');
+
+const admin = wrap(async (req, res, next) => {
+  const live = await Session.exists({ tokenHash: hashToken(bearer(req)), expiresAt: { $gt: new Date() } });
+  if (!live) return res.status(401).json({ message: 'Vui lòng đăng nhập quản trị' });
+  next();
+});
 
 const slugify = (s) =>
   s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
@@ -100,7 +101,7 @@ const WINDOW_MS = 15 * 60 * 1000;
 const fails = new Map(); // ip -> { count, resetAt }
 setInterval(() => { for (const [ip, f] of fails) if (f.resetAt <= Date.now()) fails.delete(ip); }, WINDOW_MS).unref();
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', wrap(async (req, res) => {
   const now = Date.now();
   const rec = fails.get(req.ip);
   const active = rec && rec.resetAt > now ? rec : null;
@@ -111,11 +112,22 @@ app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   if (same(username, ADMIN_USER) && same(password, ADMIN_PASSWORD)) {
     fails.delete(req.ip);
-    return res.json({ token: jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '7d' }) });
+    const token = crypto.randomBytes(32).toString('base64url');
+    await Session.create({ tokenHash: hashToken(token), expiresAt: new Date(Date.now() + SESSION_MS) });
+    return res.json({ token });
   }
   fails.set(req.ip, { count: (active?.count ?? 0) + 1, resetAt: active?.resetAt ?? now + WINDOW_MS });
   res.status(401).json({ message: 'Sai tên đăng nhập hoặc mật khẩu' });
-});
+}));
+
+// lets the admin page check on opening that its saved token is still good (signed out elsewhere, expired, or voided by a password change)
+app.get('/api/session', admin, (req, res) => res.json({ ok: true }));
+
+// real sign-out: the token stops working at once, on every device that holds a copy of it
+app.post('/api/logout', wrap(async (req, res) => {
+  await Session.deleteOne({ tokenHash: hashToken(bearer(req)) });
+  res.json({ ok: true });
+}));
 
 // ---- site settings: name, contact details and links shown on every page
 const SETTING_FIELDS = ['name', 'university', 'tagline', 'address', 'phone', 'email', 'facebook', 'website'];
@@ -283,6 +295,7 @@ app.use((err, req, res, next) => {
 });
 
 connect(MONGODB_URI)
+  .then(() => syncCredentials(ADMIN_USER, ADMIN_PASSWORD))
   .then(() => app.listen(PORT, () => console.log(`API chạy tại http://localhost:${PORT}`)))
   .catch((err) => {
     console.error(`Không khởi động được: ${err.message}`);

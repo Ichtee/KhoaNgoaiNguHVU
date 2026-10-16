@@ -24,6 +24,8 @@ const save = (base, key, item) =>
 
 export const api = {
   login: (username, password) => call('/login', { method: 'POST', body: { username, password } }),
+  logout: () => call('/logout', { method: 'POST' }),
+  session: () => call('/session'),
   settings: () => call('/settings'),
   saveSettings: (settings) => call('/settings', { method: 'PUT', body: settings }),
   categories: () => call('/categories'),

@@ -280,10 +280,18 @@ export default function Admin() {
 
   const loadPosts = useCallback(() => api.posts().then(setPosts), []);
   useEffect(() => { if (authed) loadPosts(); }, [authed, loadPosts]);
+  // a token kept from an earlier visit may be dead by now: find out when the admin opens, not when the first save fails
+  useEffect(() => {
+    if (!authed) return;
+    api.session().catch((err) => {
+      if (err.message.includes('đăng nhập')) { setToken(null); setAuthed(false); }
+    });
+  }, [authed]);
 
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
 
-  const logout = () => { setToken(null); setAuthed(false); };
+  // tell the server first (it forgets the token, so a copy of it stops working), then forget it here; the request reads the token before it is cleared
+  const logout = () => { api.logout().catch(() => {}); setToken(null); setAuthed(false); };
   // runs an admin action; an expired token sends the admin back to the login form
   const guard = async (fn) => {
     try {

@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const { seed, legacy, archiveLegacy, DEFAULT_SETTINGS } = require('./store');
 
@@ -46,6 +47,25 @@ const Setting = mongoose.model('Setting', new Schema({
   address: String, phone: String, email: String, facebook: String, website: String
 }));
 
+// Login sessions. The browser keeps a random token; only its hash is stored, so a copy of the database cannot be used to log in.
+const sessionSchema = new Schema({ tokenHash: unique, expiresAt: { type: Date, required: true } });
+sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // MongoDB deletes expired sessions by itself
+const Session = mongoose.model('Session', sessionSchema);
+
+// A fingerprint of the admin login the sessions were created under. Kept apart from Setting, which the public API returns.
+const Auth = mongoose.model('Auth', new Schema({ key: unique, salt: String, check: String }));
+
+// Everyone is signed out when ADMIN_USER or ADMIN_PASSWORD has changed since the last start, so changing the password locks out
+// anyone who still has an old session (a person who left the team, a lost laptop).
+// ponytail: noticed at startup only; Render restarts the service after an environment change, which is when this runs.
+async function syncCredentials(user, password) {
+  const doc = (await Auth.findOne({ key: 'admin' }).lean()) || { salt: crypto.randomBytes(16).toString('hex') };
+  const check = crypto.scryptSync(`${user}\n${password}`, doc.salt, 32).toString('hex'); // slow on purpose: stored, so it must resist guessing
+  if (doc.check === check) return;
+  await Session.deleteMany({});
+  await Auth.updateOne({ key: 'admin' }, { salt: doc.salt, check }, { upsert: true });
+}
+
 // insert-if-missing, so a seed that was interrupted can simply run again
 const insertMissing = (Model, field, docs) =>
   Model.bulkWrite(docs.map((d) => ({ updateOne: { filter: { [field]: d[field] }, update: { $setOnInsert: d }, upsert: true } })));
@@ -66,10 +86,10 @@ async function seedOnce() {
 
 async function connect(uri) {
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
-  await Promise.all([Category, Page, Post, Setting].map((m) => m.init())); // unique indexes exist before the first request
+  await Promise.all([Category, Page, Post, Setting, Session, Auth].map((m) => m.init())); // unique indexes exist before the first request
   await seedOnce();
   // posts made before the overwrite guard existed: their creation time counts as the last save, so even their first edit is protected
   await Post.updateMany({ updatedAt: null }, [{ $set: { updatedAt: '$createdAt' } }]);
 }
 
-module.exports = { connect, Category, Page, Post, Setting };
+module.exports = { connect, syncCredentials, Category, Page, Post, Setting, Session };

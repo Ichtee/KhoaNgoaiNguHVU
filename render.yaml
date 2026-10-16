@@ -17,8 +17,6 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-      - key: JWT_SECRET
-        generateValue: true
       # the website address, e.g. https://xxx.workers.dev (enter a placeholder first, set the real one after the frontend is deployed)
       - key: CORS_ORIGIN
         sync: false
