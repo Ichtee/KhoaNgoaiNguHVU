@@ -3,7 +3,7 @@ import { Link, useOutletContext, useParams, useSearchParams } from 'react-router
 import { api } from '../api';
 import { PostCard } from './parts';
 import SectionHub from './SectionHub';
-import { EditPin, PostTools, useAdmin, useHere } from './admin/OnSite';
+import { EditPin, PostTools, useAdmin, useHere, useSitePath } from './admin/OnSite';
 import { menuHref, newPostHref } from './admin/links';
 
 const PER_PAGE = 9;
@@ -37,6 +37,7 @@ export default function PostList() {
   const { cats, pages, site } = useOutletContext();
   const { admin } = useAdmin();
   const here = useHere();
+  const link = useSitePath();
   const [posts, setPosts] = useState(null);
   const [page, setPage] = useState(1);
 
@@ -98,7 +99,7 @@ export default function PostList() {
         </>
       ) : (
         <div className="pagehead">
-          {parent && <p className="crumb"><Link to="/">Trang chủ</Link> › <Link to={`/muc/${parent.slug}`}>{parent.name}</Link></p>}
+          {parent && <p className="crumb"><Link to={link('/')}>Trang chủ</Link> › <Link to={link(`/muc/${parent.slug}`)}>{parent.name}</Link></p>}
           <h1>{title}{cat && <EditPin to={menuHref(here)} label="Sửa mục" />}</h1>
           {cat?.description && <p className="lede">{cat.description}</p>}
           {count}

@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
 import { fmtDate } from '../api';
 import { Cover } from './parts';
+import { useSitePath } from './admin/OnSite';
 
 // Featured posts as a swipeable carousel: CSS scroll-snap does the sliding, JS only adds buttons and autoplay.
 // `tools(post)` = the admin's buttons for the slide on screen (nothing for visitors)
 export default function Slides({ posts, cats, tools }) {
+  const link = useSitePath();
   const track = useRef(null);
   const [cur, setCur] = useState(0);
   const [paused, setPaused] = useState(false); // the pause button
@@ -42,7 +44,7 @@ export default function Slides({ posts, cats, tools }) {
         {posts.map((p, k) => {
           const cat = cats.find((c) => c.slug === p.category);
           return (
-            <Link key={p.id} className="lead" to={`/bai-viet/${p.slug}`} aria-roledescription="slide" aria-label={`${k + 1} / ${posts.length}: ${p.title}`}>
+            <Link key={p.id} className="lead" to={link(`/bai-viet/${p.slug}`)} aria-roledescription="slide" aria-label={`${k + 1} / ${posts.length}: ${p.title}`}>
               <Cover post={p} />
               {/* laid over the bottom of the photo on wide screens, under it on phones */}
               <span className="lead-text">

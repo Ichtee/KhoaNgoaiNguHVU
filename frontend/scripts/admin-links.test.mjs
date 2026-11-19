@@ -16,8 +16,27 @@ assert.equal(newPostHref('dao-tao', '/'), '/quan-tri/bai-moi?muc=dao-tao&ve=%2F'
 assert.equal(newPostHref('', '/'), '/quan-tri/bai-moi?ve=%2F');
 assert.equal(editPageHref('lich-su', '/trang/lich-su'), '/quan-tri/sua-trang/lich-su?ve=%2Ftrang%2Flich-su');
 assert.equal(newPageHref('gioi-thieu', '/muc/gioi-thieu'), '/quan-tri/trang-moi?muc=gioi-thieu&ve=%2Fmuc%2Fgioi-thieu');
-assert.equal(settingsHref('/'), '/quan-tri/thong-tin?ve=%2F');
-assert.equal(menuHref('/'), '/quan-tri/chuyen-muc?ve=%2F');
+assert.equal(settingsHref('/'), '/quan-tri/quan-ly/thong-tin?ve=%2F');
+assert.equal(menuHref('/'), '/quan-tri/quan-ly/chuyen-muc?ve=%2F');
+
+// inside the admin area every site link keeps the /quan-tri prefix; outside it nothing changes
+{
+  const { sitePath, publicPath, ADMIN_BASE } = await import('../src/site/admin/links.js');
+  assert.equal(ADMIN_BASE, '/quan-tri');
+  assert.equal(sitePath('', '/muc/x'), '/muc/x');
+  assert.equal(sitePath('', '/'), '/');
+  assert.equal(sitePath('/quan-tri', '/'), '/quan-tri');
+  assert.equal(sitePath('/quan-tri', '/muc/x'), '/quan-tri/muc/x');
+  assert.equal(sitePath('/quan-tri', '/#gioi-thieu'), '/quan-tri#gioi-thieu');
+  assert.equal(sitePath('/quan-tri', '/tim-kiem?q=a'), '/quan-tri/tim-kiem?q=a');
+  // "Xem như khách": the same page on the public site
+  assert.equal(publicPath('/quan-tri'), '/');
+  assert.equal(publicPath('/quan-tri/trang/lich-su'), '/trang/lich-su');
+  assert.equal(publicPath('/quan-tri/quan-ly/thong-tin'), '/');
+  assert.equal(publicPath('/quan-tri/bai/abc'), '/bai-viet/abc');
+  assert.equal(publicPath('/quan-tri/muc/x?loc=y'), '/muc/x?loc=y');
+  console.log('site path checks pass');
+}
 
 {
   const { move } = await import('../src/site/admin/order.js');

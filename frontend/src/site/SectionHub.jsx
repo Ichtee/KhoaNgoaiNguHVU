@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { api } from '../api';
-import { EditPin, MoveButtons, useAdmin, useAdminAction, useHere } from './admin/OnSite';
+import { EditPin, MoveButtons, useAdmin, useAdminAction, useHere, useSitePath } from './admin/OnSite';
 import { editPageHref, menuHref, newPageHref } from './admin/links';
 import { move } from './admin/order';
 import {
@@ -74,6 +74,7 @@ export default function SectionHub({ cat, pages, site, showContact }) {
   const { reload } = useOutletContext();
   const here = useHere();
   const act = useAdminAction();
+  const link = useSitePath();
   const { admin } = useAdmin();
   const movePage = (i, dir) => {
     const next = move(pages.map((p) => p.slug), i, dir);
@@ -95,7 +96,7 @@ export default function SectionHub({ cat, pages, site, showContact }) {
           const Icon = iconFor(p.title);
           return (
             <li key={p.slug} className="hub-item">
-              <Link to={`/trang/${p.slug}`} className="hub-card">
+              <Link to={link(`/trang/${p.slug}`)} className="hub-card">
                 <span className="hub-icon"><Icon size={22} aria-hidden="true" /></span>
                 <h2>{p.title}</h2>
                 <span className="hub-more"><span className="hub-more-text">Xem chi tiết</span> <ArrowRight size={16} aria-hidden="true" /></span>

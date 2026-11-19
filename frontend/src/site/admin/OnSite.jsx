@@ -2,12 +2,18 @@ import React, { createContext, useContext, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowDown, ArrowUp, Pencil, Pin, Settings, Star, Trash2 } from 'lucide-react';
 import { api } from '../../api';
-import { editPostHref, menuHref, newPageHref, newPostHref, settingsHref } from './links';
+import { editPostHref, menuHref, newPageHref, newPostHref, publicPath, settingsHref, sitePath } from './links';
 
 // Whether the person browsing is the logged-in admin. Layout provides it; everything below only shows when it is true,
 // so a visitor sees exactly the public site.
-export const AdminContext = createContext({ admin: false, signOut() {}, refresh() {} });
+export const AdminContext = createContext({ admin: false, base: '', signOut() {}, refresh() {} });
 export const useAdmin = () => useContext(AdminContext);
+
+// a site address for the current area: '/muc/x' on the public site, '/quan-tri/muc/x' in the admin area
+export function useSitePath() {
+  const { base } = useAdmin();
+  return (path) => sitePath(base, path);
+}
 
 // the current address, sent along so the editor can come back here
 export function useHere() {
@@ -21,17 +27,17 @@ const isExpired = (err) => /đăng nhập/i.test(err.message);
 export function AdminBar() {
   const { admin, signOut } = useAdmin();
   const here = useHere();
-  const { pathname } = useLocation();
-  if (!admin || pathname.startsWith('/quan-tri')) return null;
+  if (!admin) return null;
   return (
     <div className="admin-bar" role="region" aria-label="Công cụ quản trị">
       <div className="page admin-bar-in">
         <span className="admin-bar-who">Đang xem với quyền quản trị</span>
-        <Link to="/quan-tri"><Settings size={15} aria-hidden="true" /> Trang quản trị</Link>
+        <Link to="/quan-tri/quan-ly"><Settings size={15} aria-hidden="true" /> Quản lý</Link>
         <Link to={newPostHref('', here)}>+ Viết bài</Link>
         <Link to={newPageHref('', here)}>+ Trang mới</Link>
         <Link to={settingsHref(here)}>Sửa thông tin khoa</Link>
         <Link to={menuHref(here)}>Sửa menu</Link>
+        <a href={publicPath(here)} target="_blank" rel="noreferrer">Xem như khách</a>
         <button type="button" onClick={signOut}>Đăng xuất</button>
       </div>
     </div>

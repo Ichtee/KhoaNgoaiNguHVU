@@ -3,7 +3,7 @@ import { Link, useOutletContext, useParams } from 'react-router-dom';
 import { Files, Markdown } from './parts';
 import { api } from '../api';
 import { ContactCard, iconFor, plain } from './SectionHub';
-import { EditPin, MoveButtons, useAdminAction, useHere } from './admin/OnSite';
+import { EditPin, MoveButtons, useAdminAction, useHere, useSitePath } from './admin/OnSite';
 import { editPageHref, settingsHref } from './admin/links';
 import { move } from './admin/order';
 
@@ -30,6 +30,7 @@ export default function PageView() {
 export function PageArticle({ page, cats, pages = [], site = {}, reload }) {
   const here = useHere();
   const act = useAdminAction();
+  const link = useSitePath();
   const group = cats.find((c) => c.slug === page.group);
   const siblings = group ? pages.filter((p) => p.group === group.slug) : [];
   const thin = plain(page.content).length < 80; // a page still waiting for its content
@@ -38,8 +39,8 @@ export function PageArticle({ page, cats, pages = [], site = {}, reload }) {
     <div className="doc">
       <article className="article doc-main">
         <p className="crumb">
-          <Link to="/">Trang chủ</Link>
-          {group && <> › <Link to={`/muc/${group.slug}`}>{group.name}</Link></>}
+          <Link to={link('/')}>Trang chủ</Link>
+          {group && <> › <Link to={link(`/muc/${group.slug}`)}>{group.name}</Link></>}
         </p>
         <h1>{page.title}{page.slug && <EditPin to={editPageHref(page.slug, here)} label="Sửa trang này" />}</h1>
         <Markdown>{page.content}</Markdown>
@@ -65,7 +66,7 @@ export function PageArticle({ page, cats, pages = [], site = {}, reload }) {
                   const current = p.slug === page.slug;
                   return (
                     <li key={p.slug}>
-                      <Link to={`/trang/${p.slug}`} className={current ? 'on' : ''} aria-current={current ? 'page' : undefined}>
+                      <Link to={link(`/trang/${p.slug}`)} className={current ? 'on' : ''} aria-current={current ? 'page' : undefined}>
                         <Icon size={17} aria-hidden="true" /> {p.title}
                       </Link>
                       <MoveButtons index={i} count={siblings.length} label={p.title} onMove={(dir) => {

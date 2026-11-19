@@ -3,6 +3,13 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fmtDate } from '../api';
+import { useSitePath } from './admin/OnSite';
+
+// a link to a post that stays inside the current area (public site or /quan-tri)
+function PostLink({ post, ...props }) {
+  const site = useSitePath();
+  return <Link to={site(`/bai-viet/${post.slug}`)} {...props} />;
+}
 
 // react-markdown never renders raw HTML and strips javascript: links, so admin text is safe to show.
 const external = ({ href, children }) =>
@@ -46,7 +53,7 @@ export const DateLink = ({ post, tools }) => (
   <li>
     <time className="date">{fmtDate(post.createdAt)}</time>
     <Pin post={post} />
-    <Link to={`/bai-viet/${post.slug}`}>{post.title}</Link>
+    <PostLink post={post}>{post.title}</PostLink>
     {tools}
   </li>
 );
@@ -54,13 +61,13 @@ export const DateLink = ({ post, tools }) => (
 // a list row with a small picture, title and date: the home page's "Tin mới"
 export const ThumbLink = ({ post, tools }) => (
   <li className="thumb-row">
-    <Link to={`/bai-viet/${post.slug}`} className="thumb-link">
+    <PostLink post={post} className="thumb-link">
       <Cover post={post} />
       <span>
         <span className="thumb-title">{post.title}</span>
         <time className="date">{fmtDate(post.createdAt)}</time>
       </span>
-    </Link>
+    </PostLink>
     {tools}
   </li>
 );
@@ -68,10 +75,10 @@ export const ThumbLink = ({ post, tools }) => (
 export const PostCard = ({ post, cat, tools }) => (tools ? <div className="card-wrap"><Card post={post} cat={cat} />{tools}</div> : <Card post={post} cat={cat} />);
 
 const Card = ({ post, cat }) => (
-  <Link to={`/bai-viet/${post.slug}`} className="card">
+  <PostLink post={post} className="card">
     <Cover post={post} />
     <span className="cat">{cat?.name}<Pin post={post} /></span>
     <h3>{post.title}</h3>
     <time className="date">{fmtDate(post.createdAt)}</time>
-  </Link>
+  </PostLink>
 );

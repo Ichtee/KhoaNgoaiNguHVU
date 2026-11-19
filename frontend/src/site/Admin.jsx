@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
-import { api, fmtDate, getToken, setToken } from '../api';
+import { api, fmtDate, setToken } from '../api';
 import { PostForm, PageForm } from './AdminForms';
 import { childrenOf, topLevel, treeSlugs } from './tree';
 import { safeReturn } from './admin/links';
+import { useAdmin } from './admin/OnSite';
 import { move } from './admin/order';
 
 // a plain message, or { text, href } after a save so the admin can open what they just published
@@ -16,7 +17,8 @@ const Notice = ({ notice }) =>
     </p>
   ) : null;
 
-function Login({ onDone }) {
+// also shown by Layout whenever /quan-tri is opened without a valid session
+export function Login({ onDone }) {
   const [f, setF] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const submit = async (e) => {
@@ -356,7 +358,7 @@ function useBack(fallback) {
 
 function EditPostRoute({ cats, after }) {
   const { slug } = useParams();
-  const { params, back } = useBack('/quan-tri');
+  const { params, back } = useBack('/quan-tri/quan-ly');
   const [post, setPost] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -365,12 +367,12 @@ function EditPostRoute({ cats, after }) {
   }, [slug]);
   if (error) return <p className="empty">{error}</p>;
   if (!post) return <p className="empty">Đang tải…</p>;
-  return <PostForm key={post.id || 'new'} cats={cats} initial={post} onCancel={() => back()} onSaved={(saved) => { after(); back(`/bai-viet/${saved.slug}`); }} />;
+  return <PostForm key={post.id || 'new'} cats={cats} initial={post} onCancel={() => back()} onSaved={(saved) => { after(); back(`/quan-tri/bai-viet/${saved.slug}`); }} />;
 }
 
 function EditPageRoute({ cats, after }) {
   const { slug } = useParams();
-  const { params, back } = useBack('/quan-tri/trang');
+  const { params, back } = useBack('/quan-tri/quan-ly/trang');
   const [page, setPage] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -379,7 +381,7 @@ function EditPageRoute({ cats, after }) {
   }, [slug]);
   if (error) return <p className="empty">{error}</p>;
   if (!page) return <p className="empty">Đang tải…</p>;
-  return <PageForm key={page.slug || 'new'} cats={cats} initial={page} onCancel={() => back()} onSaved={(saved) => { after(); back(`/trang/${saved.slug}`); }} />;
+  return <PageForm key={page.slug || 'new'} cats={cats} initial={page} onCancel={() => back()} onSaved={(saved) => { after(); back(`/quan-tri/trang/${saved.slug}`); }} />;
 }
 
 // "← Quay lại trang đang xem" on admin screens opened from the public site
@@ -390,24 +392,13 @@ function BackToSite() {
 }
 
 export default function Admin() {
-  const { cats, pages, site, reload, refreshAdmin } = useOutletContext();
-  const [authed, setAuthed] = useState(!!getToken());
+  // Layout has already confirmed the session with the server before this renders (see its access check)
+  const { cats, pages, site, reload } = useOutletContext();
+  const { signOut: logout } = useAdmin();
   const [posts, setPosts] = useState(null);
 
   const loadPosts = useCallback(() => api.posts().then(setPosts), []);
-  useEffect(() => { if (authed) loadPosts(); }, [authed, loadPosts]);
-  // a token kept from an earlier visit may be dead by now: find out when the admin opens, not when the first save fails
-  useEffect(() => {
-    if (!authed) return;
-    api.session().catch((err) => {
-      if (err.message.includes('đăng nhập')) { setToken(null); setAuthed(false); }
-    });
-  }, [authed]);
-
-  if (!authed) return <Login onDone={() => { setAuthed(true); refreshAdmin?.(); }} />;
-
-  // tell the server first (it forgets the token, so a copy of it stops working), then forget it here; the request reads the token before it is cleared
-  const logout = () => { api.logout().catch(() => {}); setToken(null); setAuthed(false); refreshAdmin?.(); };
+  useEffect(() => { loadPosts(); }, [loadPosts]);
   const after = () => { loadPosts(); reload(); };
   // runs an admin action; an expired token sends the admin back to the login form
   const guard = async (fn) => {
@@ -425,29 +416,30 @@ export default function Admin() {
     <div className="admin">
       <nav className="admin-nav" aria-label="Quản trị">
         <p className="admin-nav-h">Bài viết theo mục</p>
-        <NavLink to="/quan-tri" end>Tất cả bài viết <span>{posts?.length}</span></NavLink>
+        <NavLink to="/quan-tri/quan-ly" end>Tất cả bài viết <span>{posts?.length}</span></NavLink>
         {topLevel(cats).map((c) => (
-          <NavLink key={c.slug} to={`/quan-tri/muc/${c.slug}`}>{c.name} <span>{count(c.slug)}</span></NavLink>
+          <NavLink key={c.slug} to={`/quan-tri/quan-ly/muc/${c.slug}`}>{c.name} <span>{count(c.slug)}</span></NavLink>
         ))}
         <p className="admin-nav-h">Nội dung khác</p>
-        <NavLink to="/quan-tri/trang">Trang cố định</NavLink>
-        <NavLink to="/quan-tri/chuyen-muc">Chuyên mục</NavLink>
-        <NavLink to="/quan-tri/thong-tin">Thông tin khoa</NavLink>
-        <a className="admin-site" href="/" target="_blank" rel="noreferrer"><ExternalLink size={16} /> Xem website</a>
+        <NavLink to="/quan-tri/quan-ly/trang">Trang cố định</NavLink>
+        <NavLink to="/quan-tri/quan-ly/chuyen-muc">Chuyên mục</NavLink>
+        <NavLink to="/quan-tri/quan-ly/thong-tin">Thông tin khoa</NavLink>
+        <NavLink to="/quan-tri" end><ExternalLink size={16} /> Trang chủ (chế độ sửa)</NavLink>
+        <a className="admin-site" href="/" target="_blank" rel="noreferrer"><ExternalLink size={16} /> Xem như khách</a>
         <button className="linkbtn logout" onClick={logout}>Đăng xuất</button>
       </nav>
 
       <div className="admin-main">
         <Routes>
-          <Route index element={<PostsAdmin {...postsProps} />} />
-          <Route path="muc/:slug" element={<PostsAdmin {...postsProps} />} />
-          <Route path="trang" element={<PagesAdmin cats={cats} pages={pages} reload={reload} guard={guard} />} />
+          <Route path="quan-ly" element={<PostsAdmin {...postsProps} />} />
+          <Route path="quan-ly/muc/:slug" element={<PostsAdmin {...postsProps} />} />
+          <Route path="quan-ly/trang" element={<PagesAdmin cats={cats} pages={pages} reload={reload} guard={guard} />} />
           <Route path="bai/:slug" element={<EditPostRoute cats={cats} after={after} />} />
           <Route path="bai-moi" element={<EditPostRoute cats={cats} after={after} />} />
           <Route path="sua-trang/:slug" element={<EditPageRoute cats={cats} after={after} />} />
           <Route path="trang-moi" element={<EditPageRoute cats={cats} after={after} />} />
-          <Route path="chuyen-muc" element={<><BackToSite /><Categories cats={cats} pages={pages} reload={reload} guard={guard} /></>} />
-          <Route path="thong-tin" element={<><BackToSite /><SettingsForm site={site} reload={reload} /></>} />
+          <Route path="quan-ly/chuyen-muc" element={<><BackToSite /><Categories cats={cats} pages={pages} reload={reload} guard={guard} /></>} />
+          <Route path="quan-ly/thong-tin" element={<><BackToSite /><SettingsForm site={site} reload={reload} /></>} />
           <Route path="*" element={<p className="empty">Không có trang quản trị này.</p>} />
         </Routes>
       </div>

@@ -3,7 +3,8 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { ArrowUp, Menu, X, Mail, Facebook, MapPin, Phone, Search } from 'lucide-react';
 import { api, getToken, setToken } from '../api';
 import { AdminBar, AdminContext, EditPin } from './admin/OnSite';
-import { settingsHref } from './admin/links';
+import { ADMIN_BASE, settingsHref, sitePath } from './admin/links';
+import { Login } from './Admin';
 import { topLevel, childrenOf } from './tree';
 
 export default function Layout() {
@@ -16,18 +17,46 @@ export default function Layout() {
   const navigate = useNavigate();
   const { pathname, search: query } = useLocation();
 
-  // the admin's saved session, checked once: true shows the admin tools on every page
-  const [admin, setAdmin] = useState(false);
-  const refreshAdmin = useCallback(() => {
-    if (!getToken()) return setAdmin(false);
-    api.session().then(() => setAdmin(true)).catch((err) => {
-      if (/đăng nhập/i.test(err.message)) setToken(null); // a dead token; a network error keeps it for next time
-      setAdmin(false);
+  // The admin area is the site again under /quan-tri, with editing tools. Nothing of it renders until the server
+  // confirms the session: 'checking' -> 'ok', or 'login' (no or dead token) / 'offline' (server unreachable).
+  // The public site never shows admin tools, whoever is logged in.
+  const inAdmin = pathname === ADMIN_BASE || pathname.startsWith(`${ADMIN_BASE}/`);
+  const base = inAdmin ? ADMIN_BASE : '';
+  const to = (path) => sitePath(base, path);
+  const [access, setAccess] = useState('checking');
+  const checkAccess = useCallback((quiet) => {
+    if (!getToken()) return setAccess('login');
+    if (!quiet) setAccess('checking');
+    api.session().then(() => setAccess('ok')).catch((err) => {
+      if (/đăng nhập/i.test(err.message)) { setToken(null); setAccess('login'); } else if (!quiet) setAccess('offline');
     });
   }, []);
-  const signOut = useCallback(() => { api.logout().catch(() => {}); setToken(null); setAdmin(false); }, []);
-  useEffect(() => { refreshAdmin(); }, [refreshAdmin]);
-  const adminCtx = useMemo(() => ({ admin, signOut, refresh: refreshAdmin }), [admin, signOut, refreshAdmin]);
+  useEffect(() => { if (inAdmin) checkAccess(false); }, [inAdmin, checkAccess]);
+  // back on the tab after a while: ask again, so a session ended elsewhere stops working here too
+  useEffect(() => {
+    if (!inAdmin) return undefined;
+    const again = () => checkAccess(true);
+    window.addEventListener('focus', again);
+    return () => window.removeEventListener('focus', again);
+  }, [inAdmin, checkAccess]);
+  // the admin area stays out of search engines
+  useEffect(() => {
+    if (!inAdmin) return undefined;
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex, nofollow';
+    document.head.appendChild(meta);
+    return () => meta.remove();
+  }, [inAdmin]);
+  const signOut = useCallback(() => {
+    api.logout().catch(() => {});
+    setToken(null);
+    setAccess('login');
+    navigate('/');
+  }, [navigate]);
+  const admin = inAdmin && access === 'ok';
+  const adminCtx = useMemo(() => ({ admin, base, signOut, refresh: () => checkAccess(true) }), [admin, base, signOut, checkAccess]);
+  const refreshAdmin = adminCtx.refresh;
   const here = pathname + query;
 
   // also called by the admin after it changes categories, pages or settings, so the site follows
@@ -56,7 +85,7 @@ export default function Layout() {
     e.preventDefault();
     if (!q.trim()) return;
     close();
-    navigate(`/tim-kiem?q=${encodeURIComponent(q.trim())}`);
+    navigate(to(`/tim-kiem?q=${encodeURIComponent(q.trim())}`));
   };
 
   const toTop = () => {
@@ -68,7 +97,7 @@ export default function Layout() {
   const menu = topLevel(cats).map((c) => {
     const kids = childrenOf(cats, c.slug);
     const own = pages.filter((p) => p.group === c.slug);
-    const active = [`/muc/${c.slug}`, ...kids.map((k) => `/muc/${k.slug}`), ...own.map((p) => `/trang/${p.slug}`)].includes(pathname);
+    const active = [`/muc/${c.slug}`, ...kids.map((k) => `/muc/${k.slug}`), ...own.map((p) => `/trang/${p.slug}`)].map(to).includes(pathname);
     return { ...c, kids, own, active };
   });
 
@@ -79,7 +108,7 @@ export default function Layout() {
 
       <header className="top">
         <div className="page bar">
-          <Link to="/" className="brand" onClick={close}>
+          <Link to={to('/')} className="brand" onClick={close}>
             <img src={site.logo || '/logo-khoa.png'} alt="" width="40" height="40" />
             <span>
               <b>{site.name}</b>
@@ -92,14 +121,14 @@ export default function Layout() {
               {open ? <X size={24} /> : <Menu size={24} />}
             </button>
             <div className="links">
-              <NavLink to="/" end onClick={close}>Trang chủ</NavLink>
+              <NavLink to={to('/')} end onClick={close}>Trang chủ</NavLink>
               {menu.map((c) => (
                 <div className="item" key={c.slug}>
-                  <Link to={`/muc/${c.slug}`} className={c.active ? 'active' : ''} onClick={close}>{c.name}</Link>
+                  <Link to={to(`/muc/${c.slug}`)} className={c.active ? 'active' : ''} onClick={close}>{c.name}</Link>
                   {(c.own.length > 0 || c.kids.length > 0) && (
                     <div className="sub">
-                      {c.own.map((p) => <Link key={p.slug} to={`/trang/${p.slug}`} onClick={close}>{p.title}</Link>)}
-                      {c.kids.map((k) => <Link key={k.slug} to={`/muc/${k.slug}`} onClick={close}>{k.name}</Link>)}
+                      {c.own.map((p) => <Link key={p.slug} to={to(`/trang/${p.slug}`)} onClick={close}>{p.title}</Link>)}
+                      {c.kids.map((k) => <Link key={k.slug} to={to(`/muc/${k.slug}`)} onClick={close}>{k.name}</Link>)}
                     </div>
                   )}
                 </div>
@@ -113,11 +142,19 @@ export default function Layout() {
         </div>
       </header>
 
-      <main id="main" className={pathname === '/' ? '' : 'page'}> {/* home draws its own full-width hero */}
-        {/* one key for the whole admin, so moving between its sections does not reload everything */}
-        <div key={pathname.startsWith('/quan-tri') ? '/quan-tri' : pathname} className="route">
-          <Outlet context={{ cats, pages, site, reload, admin, refreshAdmin }} />
-        </div>
+      <main id="main" className={pathname === '/' || pathname === ADMIN_BASE ? '' : 'page'}> {/* home draws its own full-width hero */}
+        {inAdmin && access !== 'ok' ? (
+          <div className="page">
+            {access === 'checking' && <p className="empty" role="status">Đang kiểm tra quyền truy cập…</p>}
+            {access === 'offline' && <p className="empty" role="alert">Không kết nối được máy chủ để kiểm tra đăng nhập. <button type="button" className="linkbtn" onClick={() => checkAccess(false)}>Thử lại</button></p>}
+            {access === 'login' && <Login onDone={() => setAccess('ok')} />}
+          </div>
+        ) : (
+          /* one key for the management screens, so moving between them does not reload everything */
+          <div key={pathname.startsWith(`${ADMIN_BASE}/quan-ly`) ? 'quan-ly' : pathname} className="route">
+            <Outlet context={{ cats, pages, site, reload, admin, refreshAdmin }} />
+          </div>
+        )}
       </main>
 
       <button className={`totop ${showTop ? 'show' : ''}`} aria-label="Lên đầu trang" tabIndex={showTop ? 0 : -1} onClick={toTop}>

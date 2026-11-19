@@ -5,7 +5,7 @@ import { Cover, DateLink, ThumbLink } from './parts';
 import { topLevel, treeSlugs } from './tree';
 import Intro from './Intro';
 import Slides from './Slides';
-import { EditPin, MoveButtons, PostTools, useAdmin, useAdminAction, useHere } from './admin/OnSite';
+import { EditPin, MoveButtons, PostTools, useAdmin, useAdminAction, useHere, useSitePath } from './admin/OnSite';
 import { newPostHref, settingsHref } from './admin/links';
 import { move } from './admin/order';
 import FeaturedPicker from './admin/FeaturedPicker';
@@ -15,6 +15,7 @@ export default function Home() {
   const { cats, site, reload } = useOutletContext();
   const { admin } = useAdmin();
   const here = useHere();
+  const link = useSitePath();
   const act = useAdminAction();
   const [posts, setPosts] = useState(null);
   const [error, setError] = useState('');
@@ -62,7 +63,7 @@ export default function Home() {
             <h1>{site.name}</h1>
             <p>{[site.university, site.tagline].filter(Boolean).join(' · ')}</p>
             <div className="cta">
-              <Link className="btn light" to="/#gioi-thieu">Giới thiệu khoa</Link>
+              <Link className="btn light" to={link('/#gioi-thieu')}>Giới thiệu khoa</Link>
               {site.facebook && <a className="btn line" href={site.facebook} target="_blank" rel="noreferrer">Facebook</a>}
               <EditPin to={settingsHref(here)} label="Sửa ảnh nền & thông tin khoa" className="on-dark" />
             </div>
@@ -96,10 +97,10 @@ export default function Home() {
           {columns.map((c) => (
             <div key={c.slug}>
               <h2 className="label">
-                <Link to={`/muc/${c.slug}`}>{c.name}</Link>
+                <Link to={link(`/muc/${c.slug}`)}>{c.name}</Link>
                 <MoveButtons index={tops.findIndex((t) => t.slug === c.slug)} count={tops.length} onMove={(dir) => moveColumn(c.slug, dir)} label={`mục ${c.name}`} />
               </h2>
-              <Link to={`/bai-viet/${c.posts[0].slug}`} className="col-lead">
+              <Link to={link(`/bai-viet/${c.posts[0].slug}`)} className="col-lead">
                 <Cover post={c.posts[0]} />
                 <span>
                   <h3>{c.posts[0].title}</h3>
@@ -108,7 +109,7 @@ export default function Home() {
               </Link>
               {tools(c.posts[0])}
               <ul className="rows">{c.posts.slice(1).map((p) => <DateLink key={p.id} post={p} tools={tools(p)} />)}</ul>
-              <Link className="more" to={`/muc/${c.slug}`}>Xem tất cả →</Link>
+              <Link className="more" to={link(`/muc/${c.slug}`)}>Xem tất cả →</Link>
               <EditPin to={newPostHref(c.slug, here)} label="+ Viết bài trong mục này" />
             </div>
           ))}

@@ -2,18 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api, fmtDate } from '../api';
 import { Files, Markdown, Pin, PostCard } from './parts';
-import { PostTools, useAdmin } from './admin/OnSite';
+import { PostTools, useAdmin, useSitePath } from './admin/OnSite';
 
 // also rendered by the admin's preview, so a draft looks exactly like the published post
 export function PostArticle({ post, cats, tools }) {
+  const link = useSitePath();
   const cat = cats.find((c) => c.slug === post.category);
   const parent = cat?.parent && cats.find((c) => c.slug === cat.parent);
   return (
     <article className="article">
       <p className="crumb">
-        <Link to="/">Trang chủ</Link>
-        {parent && <> › <Link to={`/muc/${parent.slug}`}>{parent.name}</Link></>}
-        {cat && <> › <Link to={`/muc/${cat.slug}`}>{cat.name}</Link></>}
+        <Link to={link('/')}>Trang chủ</Link>
+        {parent && <> › <Link to={link(`/muc/${parent.slug}`)}>{parent.name}</Link></>}
+        {cat && <> › <Link to={link(`/muc/${cat.slug}`)}>{cat.name}</Link></>}
       </p>
       <h1>{post.title}</h1>
       <p className="meta">
@@ -32,6 +33,7 @@ export default function PostPage() {
   const { cats } = useOutletContext();
   const { admin } = useAdmin();
   const navigate = useNavigate();
+  const link = useSitePath();
   const [post, setPost] = useState(null);
   const [related, setRelated] = useState([]);
   const [error, setError] = useState('');
@@ -58,7 +60,7 @@ export default function PostPage() {
   return (
     <>
       <PostArticle post={post} cats={cats} tools={admin && (
-        <PostTools post={post} className="big" onChanged={() => api.post(slug).then(setPost)} onDeleted={() => navigate(cat ? `/muc/${cat.slug}` : '/')} />
+        <PostTools post={post} className="big" onChanged={() => api.post(slug).then(setPost)} onDeleted={() => navigate(link(cat ? `/muc/${cat.slug}` : '/'))} />
       )} />
 
       {related.length > 0 && (
