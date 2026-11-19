@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, Route, Routes, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, FileText, Home, LogOut, Newspaper, PenLine, Phone, Settings2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, FileText, Home, Newspaper, PenLine, Phone, Settings2 } from 'lucide-react';
 import { api, fmtDate, setToken } from '../api';
 import { CoverField, PostForm, PageForm } from './AdminForms';
 import { Cover } from './parts';
@@ -456,7 +456,6 @@ function Advanced({ cats, pages, reload }) {
 
 export default function Admin() {
   const { cats, pages, site, reload } = useOutletContext();
-  const { signOut } = useAdmin();
   const { pathname } = useLocation();
   const [posts, setPosts] = useState(null);
   const [notice, setNotice] = useState(null); // { text, href, at }: shown once, on the screen named by `at`
@@ -469,13 +468,7 @@ export default function Admin() {
 
   return (
     <div className="desk">
-      <div className="desk-top">
-        {atHome ? <span className="desk-title">Khu quản trị</span> : <Link className="btn ghost" to="/quan-tri"><ArrowLeft size={18} aria-hidden="true" /> Về bảng điều khiển</Link>}
-        <span className="desk-actions">
-          <a className="btn ghost" href="/" target="_blank" rel="noreferrer"><ExternalLink size={16} aria-hidden="true" /> Xem trang web</a>
-          <button type="button" className="btn ghost" onClick={signOut}><LogOut size={16} aria-hidden="true" /> Đăng xuất</button>
-        </span>
-      </div>
+      {!atHome && <p className="desk-top"><Link className="btn ghost" to="/quan-tri"><ArrowLeft size={18} aria-hidden="true" /> Về bảng điều khiển</Link></p>}
 
       {notice && notice.at === pathname && (
         <p className="ok big-notice" role="status">

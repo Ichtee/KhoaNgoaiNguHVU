@@ -243,6 +243,12 @@ nav { margin-left: auto; }
 .news > div { min-width: 0; } /* the slides scroll inside their column */
 
 /* admin dashboard: plain tasks, big targets, words instead of symbols */
+.admin-top .bar { flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+.admin-top .brand small { color: var(--navy); font-weight: 600; }
+.admin-top-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.admin-top-actions .btn { gap: 8px; min-height: 44px; padding: 8px 14px; }
+.admin-main-area { padding-bottom: 72px; }
+@media (max-width: 560px) { .admin-top-actions .btn { padding: 8px 10px; font-size: 14px; } }
 .desk { max-width: 1040px; margin: 24px auto 0; }
 .desk-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
 .desk-title { font-size: 15px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }

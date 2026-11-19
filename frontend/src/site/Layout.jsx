@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowUp, Menu, X, Mail, Facebook, MapPin, Phone, Search } from 'lucide-react';
+import { ArrowUp, ExternalLink, LogOut, Menu, X, Mail, Facebook, MapPin, Phone, Search } from 'lucide-react';
 import { api, getToken, setToken } from '../api';
 import { AdminContext } from './admin/OnSite';
 import { Login } from './Admin';
@@ -97,6 +97,36 @@ export default function Layout() {
     return { ...c, kids, own, active };
   });
 
+  // The admin has its own frame: no site menu, search or footer to wander off through, just the way back
+  // to the dashboard, the public site and sign out. The access check decides what goes inside.
+  if (inAdmin) {
+    return (
+      <AdminContext.Provider value={adminCtx}>
+        <header className="top admin-top">
+          <div className="page bar">
+            <Link to={admin ? '/quan-tri' : '/'} className="brand">
+              <img src={site.logo || '/logo-khoa.png'} alt="" width="40" height="40" />
+              <span>
+                <b>{site.name}</b>
+                <small>Khu quản trị</small>
+              </span>
+            </Link>
+            <span className="admin-top-actions">
+              <a className="btn ghost" href="/" target="_blank" rel="noreferrer"><ExternalLink size={16} aria-hidden="true" /> Xem trang web</a>
+              {admin && <button type="button" className="btn ghost" onClick={signOut}><LogOut size={16} aria-hidden="true" /> Đăng xuất</button>}
+            </span>
+          </div>
+        </header>
+        <main id="main" className="page admin-main-area">
+          {access === 'checking' && <p className="empty" role="status">Đang kiểm tra quyền truy cập…</p>}
+          {access === 'offline' && <p className="empty" role="alert">Không kết nối được máy chủ để kiểm tra đăng nhập. <button type="button" className="linkbtn" onClick={() => checkAccess(false)}>Thử lại</button></p>}
+          {access === 'login' && <Login onDone={() => setAccess('ok')} />}
+          {admin && <Outlet context={{ cats, pages, site, reload, admin, refreshAdmin }} />}
+        </main>
+      </AdminContext.Provider>
+    );
+  }
+
   return (
     <AdminContext.Provider value={adminCtx}>
       <a className="skip" href="#main">Bỏ qua menu, đến nội dung chính</a>
@@ -138,18 +168,9 @@ export default function Layout() {
       </header>
 
       <main id="main" className={pathname === '/' ? '' : 'page'}> {/* home draws its own full-width hero */}
-        {inAdmin && access !== 'ok' ? (
-          <div className="page">
-            {access === 'checking' && <p className="empty" role="status">Đang kiểm tra quyền truy cập…</p>}
-            {access === 'offline' && <p className="empty" role="alert">Không kết nối được máy chủ để kiểm tra đăng nhập. <button type="button" className="linkbtn" onClick={() => checkAccess(false)}>Thử lại</button></p>}
-            {access === 'login' && <Login onDone={() => setAccess('ok')} />}
-          </div>
-        ) : (
-          /* one key for the management screens, so moving between them does not reload everything */
-          <div key={inAdmin ? 'quan-tri' : pathname} className="route">
-            <Outlet context={{ cats, pages, site, reload, admin, refreshAdmin }} />
-          </div>
-        )}
+        <div key={pathname} className="route">
+          <Outlet context={{ cats, pages, site, reload, admin, refreshAdmin }} />
+        </div>
       </main>
 
       <button className={`totop ${showTop ? 'show' : ''}`} aria-label="Lên đầu trang" tabIndex={showTop ? 0 : -1} onClick={toTop}>
