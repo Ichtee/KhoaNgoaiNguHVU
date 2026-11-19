@@ -269,6 +269,14 @@ nav { margin-left: auto; }
 .advanced-link a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--muted); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
 .screen-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .screen-head h1 { margin: 0; font-size: clamp(26px, 3vw, 34px); }
+.filter-panel { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--soft); }
+.filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.filter-grid label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 15px; }
+.filter-panel .chips { margin: 0; }
+.filter-panel .chips button { min-height: 44px; font-size: 15px; }
+.list-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 4px; }
+.list-summary p { margin: 0; color: var(--muted); font-weight: 600; }
+.home-search { width: 100%; margin: 6px 0 4px; }
 .finder { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
 .big-input, .big-select { min-height: 52px; padding: 10px 14px; border: 2px solid #8a93a8; border-radius: 10px; background: #fff; font: inherit; font-size: 17px; }
 .finder .big-input { flex: 1 1 320px; }

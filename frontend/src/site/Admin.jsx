@@ -7,6 +7,7 @@ import { Cover } from './parts';
 import { childrenOf, topLevel } from './tree';
 import { useAdmin } from './admin/OnSite';
 import { move } from './admin/order';
+import { filterAdminPosts } from './admin/filter';
 
 // The admin, for people who are not technical: a dashboard of plain tasks, one screen per task,
 // buttons that say what they do. Layout has already confirmed the session before any of this renders.
@@ -92,24 +93,32 @@ function Dashboard({ posts, pages }) {
 // ---- posts
 
 const PAGE_SIZE = 20;
-const fold = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
 
+const TIMES = [['', 'Mọi lúc'], ['7', '7 ngày qua'], ['30', '30 ngày qua'], ['90', '3 tháng qua'], ['nam', 'Năm nay']];
+const STATUSES = [['', 'Tất cả'], ['noi-bat', 'Tin nổi bật'], ['ghim', 'Đang ghim'], ['khong-anh', 'Chưa có ảnh bìa']];
+
+// The filters live in the address, so going into a post and back keeps them.
 function PostsScreen({ posts, cats, loadPosts }) {
   const act = useAction();
-  const [q, setQ] = useState('');
-  const [cat, setCat] = useState('');
+  const [params, setParams] = useSearchParams();
   const [shown, setShown] = useState(PAGE_SIZE);
   if (!posts) return <p className="empty">Đang tải…</p>;
+
+  const f = { q: params.get('tim') || '', cat: params.get('muc') || '', time: params.get('thoi-gian') || '', status: params.get('loai') || '', sort: params.get('sap') === 'cu' ? 'cu' : 'moi' };
+  const set = (key, value) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value); else next.delete(key);
+    setParams(next, { replace: true });
+    setShown(PAGE_SIZE);
+  };
+  const filtering = f.q || f.cat || f.time || f.status || f.sort === 'cu';
+  const list = filterAdminPosts(posts, cats, f);
 
   const nameOf = (slug) => {
     const c = cats.find((x) => x.slug === slug);
     const parent = c?.parent && cats.find((x) => x.slug === c.parent);
     return c ? (parent ? `${parent.name} › ${c.name}` : c.name) : '';
   };
-  const inSection = (p) => !cat || p.category === cat || cats.find((c) => c.slug === p.category)?.parent === cat;
-  const words = fold(q).split(/\s+/).filter(Boolean);
-  const list = posts.filter((p) => inSection(p) && words.every((w) => fold(p.title).includes(w)));
-
   const remove = (p) => {
     if (window.confirm(`Xóa tin “${p.title}”?\n\nTin sẽ biến mất khỏi trang web và không lấy lại được.`)) act(async () => { await api.deletePost(p.id); await loadPosts(); });
   };
@@ -118,17 +127,47 @@ function PostsScreen({ posts, cats, loadPosts }) {
     <>
       <div className="screen-head">
         <h1>Tin đã đăng</h1>
-        <Link className="btn big" to="/quan-tri/tin/moi">+ Đăng tin mới</Link>
+        <Link className="btn big" to={`/quan-tri/tin/moi${f.cat ? `?muc=${f.cat}` : ''}`}>+ Đăng tin mới</Link>
       </div>
-      <div className="finder">
-        <input type="search" className="big-input" placeholder="Tìm tin theo tiêu đề…" aria-label="Tìm tin theo tiêu đề" value={q} onChange={(e) => { setQ(e.target.value); setShown(PAGE_SIZE); }} />
-        <select className="big-select" aria-label="Lọc theo mục" value={cat} onChange={(e) => { setCat(e.target.value); setShown(PAGE_SIZE); }}>
-          <option value="">Tất cả các mục</option>
-          {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
-        </select>
+
+      <div className="filter-panel">
+        <input type="search" className="big-input" placeholder="Tìm tin theo tiêu đề…" aria-label="Tìm tin theo tiêu đề" value={f.q} onChange={(e) => set('tim', e.target.value)} />
+        <div className="filter-grid">
+          <label>Mục
+            <select className="big-select" value={f.cat} onChange={(e) => set('muc', e.target.value)}>
+              <option value="">Tất cả các mục</option>
+              {topLevel(cats).map((c) => (
+                <optgroup key={c.slug} label={c.name}>
+                  <option value={c.slug}>Cả mục {c.name}</option>
+                  {childrenOf(cats, c.slug).map((k) => <option key={k.slug} value={k.slug}>{k.name}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <label>Thời gian đăng
+            <select className="big-select" value={f.time} onChange={(e) => set('thoi-gian', e.target.value)}>
+              {TIMES.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+          </label>
+          <label>Sắp xếp
+            <select className="big-select" value={f.sort} onChange={(e) => set('sap', e.target.value === 'cu' ? 'cu' : '')}>
+              <option value="moi">Mới nhất trước</option>
+              <option value="cu">Cũ nhất trước</option>
+            </select>
+          </label>
+        </div>
+        <div className="chips" role="group" aria-label="Loại tin">
+          {STATUSES.map(([v, t]) => (
+            <button key={v} type="button" className={f.status === v ? 'on' : ''} aria-pressed={f.status === v} onClick={() => set('loai', v)}>{t}</button>
+          ))}
+        </div>
       </div>
-      <p className="hint" role="status">{list.length} tin</p>
-      {list.length === 0 && <p className="empty">Không tìm thấy tin nào.</p>}
+
+      <div className="list-summary">
+        <p role="status">{filtering ? `Tìm thấy ${list.length} / ${posts.length} tin` : `${posts.length} tin`}</p>
+        {filtering && <button type="button" className="btn ghost" onClick={() => { setParams({}, { replace: true }); setShown(PAGE_SIZE); }}>Xóa bộ lọc</button>}
+      </div>
+      {list.length === 0 && <p className="empty">Không có tin nào khớp. Thử bỏ bớt bộ lọc.</p>}
       <ul className="item-list">
         {list.slice(0, shown).map((p) => (
           <li key={p.id} className="item-row">
@@ -149,7 +188,7 @@ function PostsScreen({ posts, cats, loadPosts }) {
           </li>
         ))}
       </ul>
-      {list.length > shown && <button type="button" className="btn ghost wide" onClick={() => setShown(shown + PAGE_SIZE)}>Xem thêm tin cũ hơn</button>}
+      {list.length > shown && <button type="button" className="btn ghost wide" onClick={() => setShown(shown + PAGE_SIZE)}>Xem thêm {Math.min(PAGE_SIZE, list.length - shown)} tin</button>}
     </>
   );
 }
@@ -190,11 +229,14 @@ function HomeScreen({ site, reload, posts, loadPosts }) {
   const act = useAction();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const [q, setQ] = useState('');
   if (!posts) return <p className="empty">Đang tải…</p>;
 
   // tick boxes for the newest 40 posts, with every post already featured or pinned on top so it can be unticked
   const marked = posts.filter((p) => p.isFeatured || p.pinned);
-  const list = [...marked, ...posts.filter((p) => !p.isFeatured && !p.pinned)].slice(0, Math.max(40, marked.length));
+  const all = [...marked, ...posts.filter((p) => !p.isFeatured && !p.pinned)];
+  const found = q.trim() ? filterAdminPosts(all, [], { q }).sort((a, b) => (b.isFeatured || b.pinned) - (a.isFeatured || a.pinned)) : all;
+  const list = q.trim() ? found : found.slice(0, Math.max(40, marked.length));
   const featured = posts.filter((p) => p.isFeatured).length;
 
   const saveHero = (url) => act(async () => { await api.saveSettings({ ...site, heroImage: url }); await reload(); });
@@ -221,6 +263,8 @@ function HomeScreen({ site, reload, posts, loadPosts }) {
           Tích ô <b>“Tin nổi bật”</b> để tin hiện ảnh lớn ở khối trình chiếu (tối đa {MAX_FEATURED} tin, đang chọn {featured}).
           Tích ô <b>“Ghim”</b> để tin hiện ở mục “Thông báo quan trọng”.
         </p>
+        <input type="search" className="big-input home-search" placeholder="Tìm tin để đưa lên trang chủ…" aria-label="Tìm tin" value={q} onChange={(e) => setQ(e.target.value)} />
+        {q.trim() && list.length === 0 && <p className="empty">Không tìm thấy tin nào.</p>}
         {featured > MAX_FEATURED && <p className="warn">Đang chọn {featured} tin nổi bật, nhưng trang chủ chỉ hiện {MAX_FEATURED} tin mới nhất. Hãy bỏ tích bớt các tin cũ.</p>}
         <ul className="item-list">
           {list.map((p) => (
