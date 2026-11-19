@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "vite build && wrangler pages deploy --branch main --commit-dirty=true",
-    "roundtrip": "node scripts/roundtrip.mjs"
+    "roundtrip": "node scripts/roundtrip.mjs",
+    "test:links": "node scripts/admin-links.test.mjs"
   },
   "dependencies": {
     "@tiptap/core": "^3.32.2",

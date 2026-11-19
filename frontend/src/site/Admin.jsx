@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { NavLink, Route, Routes, useOutletContext, useParams } from 'react-router-dom';
+import { Link, NavLink, Route, Routes, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import { api, fmtDate, getToken, setToken } from '../api';
 import { PostForm, PageForm } from './AdminForms';
 import { childrenOf, topLevel, treeSlugs } from './tree';
+import { safeReturn } from './admin/links';
 
 // a plain message, or { text, href } after a save so the admin can open what they just published
 const Notice = ({ notice }) =>
@@ -233,6 +234,8 @@ function SettingsForm({ site, reload }) {
   const [f, setF] = useState(site);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
   useEffect(() => setF(site), [site]); // the site loads after the first render when the admin is opened directly
   const submit = async (e) => {
     e.preventDefault();
@@ -241,6 +244,7 @@ function SettingsForm({ site, reload }) {
     try {
       await api.saveSettings(f);
       await reload();
+      if (params.get('ve')) return navigate(safeReturn(params.get('ve'))); // opened from the public site: show the change there
       setMsg('Đã lưu.');
     } catch (err) {
       setError(err.message);
@@ -277,7 +281,7 @@ function Categories({ cats, reload, guard }) {
   };
   const rename = (c) => {
     const next = window.prompt('Tên mới của chuyên mục', c.name);
-    if (next?.trim()) guard(async () => { await api.renameCategory(c.slug, next.trim()); await reload(); });
+    if (next?.trim()) guard(async () => { await api.updateCategory(c.slug, { name: next.trim() }); await reload(); });
   };
   const remove = (c) => {
     if (window.confirm(`Xóa chuyên mục "${c.name}"?`)) guard(async () => { await api.deleteCategory(c.slug); await reload(); });
@@ -314,8 +318,52 @@ function Categories({ cats, reload, guard }) {
   );
 }
 
+// Opened from a ✎ on the public site (/quan-tri/bai/<slug>, /bai-moi?muc=…): the editor alone,
+// and back to the page the admin came from (?ve=…) after saving or cancelling.
+function useBack(fallback) {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const ve = params.get('ve');
+  return { params, back: (to) => navigate(ve ? safeReturn(ve) : to || fallback) };
+}
+
+function EditPostRoute({ cats, after }) {
+  const { slug } = useParams();
+  const { params, back } = useBack('/quan-tri');
+  const [post, setPost] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!slug) setPost({ category: params.get('muc') || '' });
+    else api.post(slug).then(setPost).catch((e) => setError(e.message));
+  }, [slug]);
+  if (error) return <p className="empty">{error}</p>;
+  if (!post) return <p className="empty">Đang tải…</p>;
+  return <PostForm key={post.id || 'new'} cats={cats} initial={post} onCancel={() => back()} onSaved={(saved) => { after(); back(`/bai-viet/${saved.slug}`); }} />;
+}
+
+function EditPageRoute({ cats, after }) {
+  const { slug } = useParams();
+  const { params, back } = useBack('/quan-tri/trang');
+  const [page, setPage] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!slug) setPage({ group: params.get('muc') || '' });
+    else api.page(slug).then(setPage).catch((e) => setError(e.message));
+  }, [slug]);
+  if (error) return <p className="empty">{error}</p>;
+  if (!page) return <p className="empty">Đang tải…</p>;
+  return <PageForm key={page.slug || 'new'} cats={cats} initial={page} onCancel={() => back()} onSaved={(saved) => { after(); back(`/trang/${saved.slug}`); }} />;
+}
+
+// "← Quay lại trang đang xem" on admin screens opened from the public site
+function BackToSite() {
+  const [params] = useSearchParams();
+  const ve = params.get('ve');
+  return ve ? <p className="back-to-site"><Link to={safeReturn(ve)}>← Quay lại trang đang xem</Link></p> : null;
+}
+
 export default function Admin() {
-  const { cats, pages, site, reload } = useOutletContext();
+  const { cats, pages, site, reload, refreshAdmin } = useOutletContext();
   const [authed, setAuthed] = useState(!!getToken());
   const [posts, setPosts] = useState(null);
 
@@ -329,10 +377,11 @@ export default function Admin() {
     });
   }, [authed]);
 
-  if (!authed) return <Login onDone={() => setAuthed(true)} />;
+  if (!authed) return <Login onDone={() => { setAuthed(true); refreshAdmin?.(); }} />;
 
   // tell the server first (it forgets the token, so a copy of it stops working), then forget it here; the request reads the token before it is cleared
-  const logout = () => { api.logout().catch(() => {}); setToken(null); setAuthed(false); };
+  const logout = () => { api.logout().catch(() => {}); setToken(null); setAuthed(false); refreshAdmin?.(); };
+  const after = () => { loadPosts(); reload(); };
   // runs an admin action; an expired token sends the admin back to the login form
   const guard = async (fn) => {
     try {
@@ -366,8 +415,12 @@ export default function Admin() {
           <Route index element={<PostsAdmin {...postsProps} />} />
           <Route path="muc/:slug" element={<PostsAdmin {...postsProps} />} />
           <Route path="trang" element={<PagesAdmin cats={cats} pages={pages} reload={reload} guard={guard} />} />
-          <Route path="chuyen-muc" element={<Categories cats={cats} reload={reload} guard={guard} />} />
-          <Route path="thong-tin" element={<SettingsForm site={site} reload={reload} />} />
+          <Route path="bai/:slug" element={<EditPostRoute cats={cats} after={after} />} />
+          <Route path="bai-moi" element={<EditPostRoute cats={cats} after={after} />} />
+          <Route path="sua-trang/:slug" element={<EditPageRoute cats={cats} after={after} />} />
+          <Route path="trang-moi" element={<EditPageRoute cats={cats} after={after} />} />
+          <Route path="chuyen-muc" element={<><BackToSite /><Categories cats={cats} pages={pages} reload={reload} guard={guard} /></>} />
+          <Route path="thong-tin" element={<><BackToSite /><SettingsForm site={site} reload={reload} /></>} />
           <Route path="*" element={<p className="empty">Không có trang quản trị này.</p>} />
         </Routes>
       </div>
