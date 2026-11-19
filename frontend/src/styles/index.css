@@ -212,6 +212,32 @@ nav { margin-left: auto; }
   .banner { padding: 32px 22px; }
 }
 
+/* admin: rich text editor (the body looks like the published .prose) */
+.rte { border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.rte-bar { position: sticky; top: 64px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 6px; border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; background: #fff; }
+.rte-bar > button, .rte-context button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; min-height: 40px; padding: 0 8px; border: 0; border-radius: var(--radius); background: none; color: var(--ink); font: inherit; font-size: 14px; }
+.rte-bar > button:hover:not(:disabled), .rte-context button:hover { background: var(--soft); }
+.rte-bar > button.on { background: var(--navy); color: #fff; }
+.rte-bar > button:disabled { opacity: .35; cursor: default; }
+.rte-sep { width: 1px; height: 24px; margin: 0 4px; background: var(--line); }
+.rte-bar .rte-raw { margin-left: auto; color: var(--muted); font-size: 13px; }
+.rte-context { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; padding: 6px 4px 2px; border-top: 1px dashed var(--line); }
+.rte-context .danger { color: #b42318; }
+.rte-content { min-height: 320px; padding: 20px 24px; font-size: 18px; outline: none; }
+.rte-content:focus-visible { outline: none; }
+.rte:focus-within { border-color: var(--navy); }
+.rte-content img { display: block; max-width: 100%; height: auto; margin: 8px 0; cursor: pointer; }
+.rte-content img.ProseMirror-selectednode { outline: 3px solid var(--focus); outline-offset: 2px; }
+.rte-content p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; color: var(--muted); pointer-events: none; }
+.rte-content table { width: 100%; }
+.rte-content .selectedCell { background: #e8ecfa; }
+.rte-source { display: block; width: 100%; min-height: 420px; padding: 16px 20px; border: 0; border-radius: 0 0 10px 10px; font: 15px/1.6 ui-monospace, Consolas, monospace; resize: vertical; }
+@media (max-width: 560px) {
+  .rte-bar { flex-wrap: nowrap; overflow-x: auto; }
+  .rte-context { flex-wrap: nowrap; }
+  .rte-content { padding: 16px; font-size: 17px; }
+}
+
 /* admin: pictures of a post as a grid */
 .imgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin: 6px 0 10px; padding: 0; list-style: none; }
 .imgs li { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
