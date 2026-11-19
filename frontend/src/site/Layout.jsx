@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowUp, Menu, X, Mail, Facebook, MapPin, Phone, Search } from 'lucide-react';
-import { api } from '../api';
+import { api, getToken, setToken } from '../api';
+import { AdminBar, AdminContext, EditPin } from './admin/OnSite';
+import { menuHref, settingsHref } from './admin/links';
 import { topLevel, childrenOf } from './tree';
 
 export default function Layout() {
@@ -12,7 +14,21 @@ export default function Layout() {
   const [q, setQ] = useState('');
   const [showTop, setShowTop] = useState(false);
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search: query } = useLocation();
+
+  // the admin's saved session, checked once: true shows the admin tools on every page
+  const [admin, setAdmin] = useState(false);
+  const refreshAdmin = useCallback(() => {
+    if (!getToken()) return setAdmin(false);
+    api.session().then(() => setAdmin(true)).catch((err) => {
+      if (/đăng nhập/i.test(err.message)) setToken(null); // a dead token; a network error keeps it for next time
+      setAdmin(false);
+    });
+  }, []);
+  const signOut = useCallback(() => { api.logout().catch(() => {}); setToken(null); setAdmin(false); }, []);
+  useEffect(() => { refreshAdmin(); }, [refreshAdmin]);
+  const adminCtx = useMemo(() => ({ admin, signOut, refresh: refreshAdmin }), [admin, signOut, refreshAdmin]);
+  const here = pathname + query;
 
   // also called by the admin after it changes categories, pages or settings, so the site follows
   const reload = useCallback(
@@ -57,8 +73,9 @@ export default function Layout() {
   });
 
   return (
-    <>
+    <AdminContext.Provider value={adminCtx}>
       <a className="skip" href="#main">Bỏ qua menu, đến nội dung chính</a>
+      <AdminBar />
 
       <header className="top">
         <div className="page bar">
@@ -69,6 +86,7 @@ export default function Layout() {
               <small>{site.university}</small>
             </span>
           </Link>
+          <EditPin to={settingsHref(here)} label="Sửa thông tin khoa" className="pin-brand" />
 
           <nav className={open ? 'open' : ''}>
             <button className="burger" aria-label={open ? 'Đóng menu' : 'Mở menu'} aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -87,6 +105,7 @@ export default function Layout() {
                   )}
                 </div>
               ))}
+              <EditPin to={menuHref(here)} label="Sửa menu" className="pin-menu" />
               <form onSubmit={search} role="search">
                 <Search size={16} />
                 <input type="search" aria-label="Tìm kiếm bài viết" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm bài viết" />
@@ -99,7 +118,7 @@ export default function Layout() {
       <main id="main" className={pathname === '/' ? '' : 'page'}> {/* home draws its own full-width hero */}
         {/* one key for the whole admin, so moving between its sections does not reload everything */}
         <div key={pathname.startsWith('/quan-tri') ? '/quan-tri' : pathname} className="route">
-          <Outlet context={{ cats, pages, site, reload }} />
+          <Outlet context={{ cats, pages, site, reload, admin, refreshAdmin }} />
         </div>
       </main>
 
@@ -110,7 +129,7 @@ export default function Layout() {
       <footer>
         <div className="page foot">
           <div>
-            <h3>{site.name}</h3>
+            <h3>{site.name} <EditPin to={settingsHref(here)} label="Sửa thông tin khoa" className="on-dark" /></h3>
             <p>{site.university}<br />{site.tagline}</p>
           </div>
           <div>
@@ -127,6 +146,6 @@ export default function Layout() {
         </div>
         <div className="page copy">© {new Date().getFullYear()} {[site.name, site.university].filter(Boolean).join(' – ')}</div>
       </footer>
-    </>
+    </AdminContext.Provider>
   );
 }

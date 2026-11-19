@@ -19,9 +19,8 @@ assert.equal(newPageHref('gioi-thieu', '/muc/gioi-thieu'), '/quan-tri/trang-moi?
 assert.equal(settingsHref('/'), '/quan-tri/thong-tin?ve=%2F');
 assert.equal(menuHref('/'), '/quan-tri/chuyen-muc?ve=%2F');
 
-const order = await import('../src/site/admin/order.js').catch(() => null);
-if (order) {
-  const { move } = order;
+{
+  const { move } = await import('../src/site/admin/order.js');
   assert.deepEqual(move(['a', 'b', 'c'], 1, -1), ['b', 'a', 'c']);
   assert.deepEqual(move(['a', 'b', 'c'], 1, 1), ['a', 'c', 'b']);
   assert.equal(move(['a', 'b', 'c'], 0, -1), null);

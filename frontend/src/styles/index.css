@@ -212,6 +212,50 @@ nav { margin-left: auto; }
   .banner { padding: 32px 22px; }
 }
 
+/* admin on the public site: shown only to the logged-in admin */
+.admin-bar { background: var(--ink); color: #fff; font-size: 14px; }
+.admin-bar-in { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; min-height: 40px; }
+.admin-bar-who { margin-right: auto; opacity: .8; }
+.admin-bar a, .admin-bar button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0; border: 0; background: none; color: #fff; font: inherit; font-weight: 600; }
+.admin-bar a:hover, .admin-bar button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.edit-pin { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 2px 10px; margin-left: 8px; border: 1px dashed var(--navy); border-radius: 999px; background: #fff; color: var(--navy); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; vertical-align: middle; white-space: nowrap; }
+.edit-pin:hover { background: var(--navy); color: #fff; border-style: solid; }
+.edit-pin.on-dark { border-color: rgb(255 255 255 / .8); background: rgb(255 255 255 / .12); color: #fff; }
+.edit-pin.on-dark:hover { background: #fff; color: var(--navy); }
+.cta .edit-pin, .banner-tools .edit-pin { min-height: 44px; margin-left: 0; }
+.banner-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px !important; }
+.label .edit-pin, h1 .edit-pin { font-size: 13px; }
+.pin-brand { margin-left: 0; }
+.post-tools { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.rows .post-tools { margin-left: auto; flex: none; }
+.post-tools.big { margin: 4px 0 8px; }
+.tool { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; color: var(--muted); cursor: pointer; }
+.tool:hover:not(:disabled) { border-color: var(--navy); color: var(--navy); }
+.tool.on { border-color: var(--focus); background: #fff6e0; color: #9a6200; }
+.tool.danger:hover:not(:disabled) { border-color: #b42318; color: #b42318; }
+.tool:disabled { opacity: .35; cursor: default; }
+.tool-err { flex-basis: 100%; color: #c00; font-size: 13px; }
+.move-btns { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+.card-wrap { display: flex; flex-direction: column; gap: 8px; }
+.hub-item { position: relative; }
+.hub-tools { position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 4px; }
+.hub-tools:empty { display: none; }
+.hub-tools .edit-pin { margin-left: 0; }
+.side-nav li { display: flex; align-items: center; }
+.side-nav li > a { flex: 1; }
+.side-nav .move-btns { margin-left: 4px; }
+.doc-side > .edit-pin { align-self: flex-start; margin: 10px 0 0; }
+.lede { font-size: 17px; }
+.back-to-site { margin: 0 0 12px; font-weight: 600; }
+.back-to-site a { color: var(--navy); }
+@media (pointer: coarse) {
+  .tool { width: 44px; height: 44px; }
+  .edit-pin { min-height: 44px; }
+}
+@media (max-width: 1120px) {
+  .pin-brand { display: none; } /* the header is tight; the footer and hero carry the same link */
+}
+
 /* admin: a post or page edited the way it is published; settings and Save in a column on the right */
 .studio { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 32px; align-items: start; }
 /* while writing, the admin's section list steps aside so the post gets the room (Hủy brings it back) */

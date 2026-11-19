@@ -41,15 +41,19 @@ export const Cover = ({ post }) => (
   />
 );
 
-export const DateLink = ({ post }) => (
+// `tools` = the admin's buttons for this post (nothing for visitors), kept outside the link
+export const DateLink = ({ post, tools }) => (
   <li>
     <time className="date">{fmtDate(post.createdAt)}</time>
     <Pin post={post} />
     <Link to={`/bai-viet/${post.slug}`}>{post.title}</Link>
+    {tools}
   </li>
 );
 
-export const PostCard = ({ post, cat }) => (
+export const PostCard = ({ post, cat, tools }) => (tools ? <div className="card-wrap"><Card post={post} cat={cat} />{tools}</div> : <Card post={post} cat={cat} />);
+
+const Card = ({ post, cat }) => (
   <Link to={`/bai-viet/${post.slug}`} className="card">
     <Cover post={post} />
     <span className="cat">{cat?.name}<Pin post={post} /></span>

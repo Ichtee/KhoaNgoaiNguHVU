@@ -1,5 +1,9 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
+import { api } from '../api';
+import { EditPin, MoveButtons, useAdmin, useAdminAction, useHere } from './admin/OnSite';
+import { editPageHref, menuHref, newPageHref } from './admin/links';
+import { move } from './admin/order';
 import {
   ArrowRight, BookOpen, ClipboardList, FileText, GraduationCap, History, Info, Mail, MapPin, Network, Phone, Target, Users
 } from 'lucide-react';
@@ -67,26 +71,39 @@ export function ContactCard({ site, title = 'Liên hệ khoa' }) {
 
 // The landing view of a section that holds fixed pages (Giới thiệu, Đào tạo…): a banner, one card per page, and contact details.
 export default function SectionHub({ cat, pages, site, showContact }) {
+  const { reload } = useOutletContext();
+  const here = useHere();
+  const act = useAdminAction();
+  const { admin } = useAdmin();
+  const movePage = (i, dir) => {
+    const next = move(pages.map((p) => p.slug), i, dir);
+    if (next) act(async () => { await api.reorderPages(next); await reload(); });
+  };
   return (
     <>
       <section className={site.heroImage ? 'banner photo' : 'banner'} style={site.heroImage ? { '--hero': `url(${JSON.stringify(site.heroImage)})` } : undefined}>
         <div className="banner-in">
           <p className="eyebrow">{site.name}</p>
           <h1>{cat.name}</h1>
-          {(site.university || site.tagline) && <p>{[site.university, site.tagline].filter(Boolean).join(' · ')}</p>}
+          {cat.description ? <p>{cat.description}</p> : (site.university || site.tagline) && <p>{[site.university, site.tagline].filter(Boolean).join(' · ')}</p>}
+          {admin && <p className="banner-tools"><EditPin to={menuHref(here)} label="Sửa tên, mô tả mục" className="on-dark" /> <EditPin to={newPageHref(cat.slug, here)} label="+ Thêm trang vào mục này" className="on-dark" /></p>}
         </div>
       </section>
 
       <ul className="hub">
-        {pages.map((p) => {
+        {pages.map((p, i) => {
           const Icon = iconFor(p.title);
           return (
-            <li key={p.slug}>
+            <li key={p.slug} className="hub-item">
               <Link to={`/trang/${p.slug}`} className="hub-card">
                 <span className="hub-icon"><Icon size={22} aria-hidden="true" /></span>
                 <h2>{p.title}</h2>
                 <span className="hub-more"><span className="hub-more-text">Xem chi tiết</span> <ArrowRight size={16} aria-hidden="true" /></span>
               </Link>
+              <span className="hub-tools">
+                <EditPin to={editPageHref(p.slug, here)} />
+                <MoveButtons index={i} count={pages.length} onMove={(dir) => movePage(i, dir)} label={p.title} />
+              </span>
             </li>
           );
         })}

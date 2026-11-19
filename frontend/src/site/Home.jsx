@@ -1,20 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import { api, fmtDate } from '../api';
 import { Cover, DateLink } from './parts';
 import { topLevel, treeSlugs } from './tree';
 import Intro from './Intro';
 import Slides from './Slides';
+import { EditPin, MoveButtons, PostTools, useAdmin, useAdminAction, useHere } from './admin/OnSite';
+import { newPostHref, settingsHref } from './admin/links';
+import { move } from './admin/order';
 
 export default function Home() {
-  const { cats, site } = useOutletContext();
+  const { cats, site, reload } = useOutletContext();
+  const { admin } = useAdmin();
+  const here = useHere();
+  const act = useAdminAction();
   const [posts, setPosts] = useState(null);
   const [error, setError] = useState('');
   const { hash, key } = useLocation(); // key changes on every click, even to the same #anchor
 
-  useEffect(() => {
-    api.posts().then(setPosts).catch((e) => setError(e.message));
-  }, []);
+  const load = useCallback(() => api.posts().then(setPosts).catch((e) => setError(e.message)), []);
+  useEffect(() => { load(); }, [load]);
 
   // the router does not scroll to #anchors itself; wait for posts because the page renders only after they load
   useEffect(() => {
@@ -34,9 +39,17 @@ export default function Home() {
 
   // one column per top-level category (its children's posts count), skipping what the slides and "Tin mới" already show
   const shown = new Set([...slides, ...latest, ...pinned].map((p) => p.id));
-  const columns = topLevel(cats)
+  const tops = topLevel(cats);
+  const columns = tops
     .map((c) => ({ ...c, posts: normal.filter((p) => !shown.has(p.id) && treeSlugs(cats, c.slug).includes(p.category)).slice(0, 4) }))
     .filter((c) => c.posts.length > 0);
+
+  const tools = (p) => admin && <PostTools post={p} onChanged={load} />;
+  // a column moves within the menu order of all sections, so the menu and the home page stay in step
+  const moveColumn = (slug, dir) => {
+    const next = move(tops.map((c) => c.slug), tops.findIndex((c) => c.slug === slug), dir);
+    if (next) act(async () => { await api.reorderCategories(next); await reload(); });
+  };
 
   return (
     <>
@@ -48,6 +61,7 @@ export default function Home() {
             <div className="cta">
               <Link className="btn light" to="/#gioi-thieu">Giới thiệu khoa</Link>
               {site.facebook && <a className="btn line" href={site.facebook} target="_blank" rel="noreferrer">Facebook</a>}
+              <EditPin to={settingsHref(here)} label="Sửa ảnh nền & thông tin khoa" className="on-dark" />
             </div>
           </div>
           <img src={site.logo || '/logo-khoa.png'} alt={`Logo ${site.name || ''}`} width="200" height="200" />
@@ -58,16 +72,16 @@ export default function Home() {
         {pinned.length > 0 && (
           <section className="notice">
             <h2 className="label">Thông báo quan trọng</h2>
-            <ul className="rows">{pinned.map((p) => <DateLink key={p.id} post={p} />)}</ul>
+            <ul className="rows">{pinned.map((p) => <DateLink key={p.id} post={p} tools={tools(p)} />)}</ul>
           </section>
         )}
 
         {lead && (
           <section className="news">
-            <Slides posts={slides} cats={cats} />
+            <Slides posts={slides} cats={cats} tools={tools} />
             <div>
               <h2 className="label">Tin mới</h2>
-              <ul className="rows">{latest.map((p) => <DateLink key={p.id} post={p} />)}</ul>
+              <ul className="rows">{latest.map((p) => <DateLink key={p.id} post={p} tools={tools(p)} />)}</ul>
             </div>
           </section>
         )}
@@ -75,7 +89,10 @@ export default function Home() {
         <section className="cols">
           {columns.map((c) => (
             <div key={c.slug}>
-              <h2 className="label"><Link to={`/muc/${c.slug}`}>{c.name}</Link></h2>
+              <h2 className="label">
+                <Link to={`/muc/${c.slug}`}>{c.name}</Link>
+                <MoveButtons index={tops.findIndex((t) => t.slug === c.slug)} count={tops.length} onMove={(dir) => moveColumn(c.slug, dir)} label={`mục ${c.name}`} />
+              </h2>
               <Link to={`/bai-viet/${c.posts[0].slug}`} className="col-lead">
                 <Cover post={c.posts[0]} />
                 <span>
@@ -83,8 +100,10 @@ export default function Home() {
                   <time className="date">{fmtDate(c.posts[0].createdAt)}</time>
                 </span>
               </Link>
-              <ul className="rows">{c.posts.slice(1).map((p) => <DateLink key={p.id} post={p} />)}</ul>
+              {tools(c.posts[0])}
+              <ul className="rows">{c.posts.slice(1).map((p) => <DateLink key={p.id} post={p} tools={tools(p)} />)}</ul>
               <Link className="more" to={`/muc/${c.slug}`}>Xem tất cả →</Link>
+              <EditPin to={newPostHref(c.slug, here)} label="+ Viết bài trong mục này" />
             </div>
           ))}
         </section>

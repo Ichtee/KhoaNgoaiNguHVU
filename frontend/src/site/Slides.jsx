@@ -5,7 +5,8 @@ import { fmtDate } from '../api';
 import { Cover } from './parts';
 
 // Featured posts as a swipeable carousel: CSS scroll-snap does the sliding, JS only adds buttons and autoplay.
-export default function Slides({ posts, cats }) {
+// `tools(post)` = the admin's buttons for the slide on screen (nothing for visitors)
+export default function Slides({ posts, cats, tools }) {
   const track = useRef(null);
   const [cur, setCur] = useState(0);
   const [paused, setPaused] = useState(false); // the pause button
@@ -51,6 +52,7 @@ export default function Slides({ posts, cats }) {
           );
         })}
       </div>
+      {tools?.(posts[Math.min(cur, posts.length - 1)])}
       {many && (
         <div className="ctrl">
           <button aria-label="Tin trước" onClick={() => step(-1)}><ChevronLeft size={20} /></button>

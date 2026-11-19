@@ -2,9 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { api } from '../api';
 import { Markdown } from './parts';
+import { EditPin, useHere } from './admin/OnSite';
+import { editPageHref, settingsHref } from './admin/links';
 
 export default function Intro() {
   const { site } = useOutletContext();
+  const here = useHere();
   const [page, setPage] = useState(null);
 
   useEffect(() => {
@@ -21,12 +24,12 @@ export default function Intro() {
   return (
     <div className="about">
       <div>
-        <h2 className="label">{page?.title || 'Giới thiệu chung'}</h2>
+        <h2 className="label">{page?.title || 'Giới thiệu chung'} <EditPin to={editPageHref('gioi-thieu', here)} /></h2>
         <Markdown>{page ? page.content : 'Đang tải…'}</Markdown>
         <Link className="more" to="/muc/gioi-thieu">Xem thêm về khoa →</Link>
       </div>
       <div>
-        <h2 className="label">Liên hệ</h2>
+        <h2 className="label">Liên hệ <EditPin to={settingsHref(here)} /></h2>
         <dl className="contact">
           {rows.map(([label, value]) => (
             <React.Fragment key={label}><dt>{label}</dt><dd>{value}</dd></React.Fragment>

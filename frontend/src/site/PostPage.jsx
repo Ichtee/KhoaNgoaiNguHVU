@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api, fmtDate } from '../api';
 import { Files, Markdown, Pin, PostCard } from './parts';
+import { PostTools, useAdmin } from './admin/OnSite';
 
 // also rendered by the admin's preview, so a draft looks exactly like the published post
-export function PostArticle({ post, cats }) {
+export function PostArticle({ post, cats, tools }) {
   const cat = cats.find((c) => c.slug === post.category);
   const parent = cat?.parent && cats.find((c) => c.slug === cat.parent);
   return (
@@ -18,6 +19,7 @@ export function PostArticle({ post, cats }) {
       <p className="meta">
         {cat && <span className="cat">{cat.name}</span>} <Pin post={post} /> <time className="date">{fmtDate(post.createdAt)}</time>
       </p>
+      {tools}
       {post.coverImage && <img className="post-cover" src={post.coverImage} alt="" />}
       <Markdown>{post.content}</Markdown>
       <Files files={post.files} />
@@ -28,6 +30,8 @@ export function PostArticle({ post, cats }) {
 export default function PostPage() {
   const { slug } = useParams();
   const { cats } = useOutletContext();
+  const { admin } = useAdmin();
+  const navigate = useNavigate();
   const [post, setPost] = useState(null);
   const [related, setRelated] = useState([]);
   const [error, setError] = useState('');
@@ -53,7 +57,9 @@ export default function PostPage() {
 
   return (
     <>
-      <PostArticle post={post} cats={cats} />
+      <PostArticle post={post} cats={cats} tools={admin && (
+        <PostTools post={post} className="big" onChanged={() => api.post(slug).then(setPost)} onDeleted={() => navigate(cat ? `/muc/${cat.slug}` : '/')} />
+      )} />
 
       {related.length > 0 && (
         <>

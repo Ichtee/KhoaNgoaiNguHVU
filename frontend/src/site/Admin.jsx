@@ -5,6 +5,7 @@ import { api, fmtDate, getToken, setToken } from '../api';
 import { PostForm, PageForm } from './AdminForms';
 import { childrenOf, topLevel, treeSlugs } from './tree';
 import { safeReturn } from './admin/links';
+import { move } from './admin/order';
 
 // a plain message, or { text, href } after a save so the admin can open what they just published
 const Notice = ({ notice }) =>
@@ -178,6 +179,18 @@ function PagesAdmin({ cats, pages, reload, guard }) {
                 <td>{p.title}</td>
                 <td>{p.group ? nameOf(p.group) : '—'}</td>
                 <td className="actions">
+                  {(() => {
+                    // ↑↓ among the pages listed in the same section's menu
+                    const group = pages.filter((x) => x.group === p.group).map((x) => x.slug);
+                    const i = group.indexOf(p.slug);
+                    const shift = (dir) => { const next = move(group, i, dir); if (next) guard(async () => { await api.reorderPages(next); await reload(); }); };
+                    return p.group && group.length > 1 && (
+                      <>
+                        <button aria-label={`Đưa ${p.title} lên`} disabled={i === 0} onClick={() => shift(-1)}>↑</button>
+                        <button aria-label={`Đưa ${p.title} xuống`} disabled={i === group.length - 1} onClick={() => shift(1)}>↓</button>
+                      </>
+                    );
+                  })()}
                   <a href={`/trang/${p.slug}`} target="_blank" rel="noreferrer">Xem</a>
                   <button onClick={() => guard(async () => { setNotice(''); setEditing(await api.page(p.slug)); })}>Sửa</button>
                   {p.slug !== 'gioi-thieu' && <button onClick={() => remove(p)}>Xóa</button>}
@@ -286,6 +299,17 @@ function Categories({ cats, reload, guard }) {
   const remove = (c) => {
     if (window.confirm(`Xóa chuyên mục "${c.name}"?`)) guard(async () => { await api.deleteCategory(c.slug); await reload(); });
   };
+  const describe = (c) => {
+    const next = window.prompt(`Mô tả ngắn của mục "${c.name}" (hiện dưới tên mục; để trống để bỏ):`, c.description || '');
+    if (next !== null) guard(async () => { await api.updateCategory(c.slug, { name: c.name, description: next.trim() }); await reload(); });
+  };
+  // ↑↓ within the same level: top-level sections among themselves, sub-sections within their section
+  const siblingsOf = (c) => (c.parent ? childrenOf(cats, c.parent) : topLevel(cats));
+  const shift = (c, dir) => {
+    const group = siblingsOf(c).map((x) => x.slug);
+    const next = move(group, group.indexOf(c.slug), dir);
+    if (next) guard(async () => { await api.reorderCategories(next); await reload(); });
+  };
   return (
     <div className="box">
       <h2>Chuyên mục</h2>
@@ -303,10 +327,13 @@ function Categories({ cats, reload, guard }) {
           <tbody>
             {topLevel(cats).flatMap((c) => [c, ...childrenOf(cats, c.slug)]).map((c) => (
               <tr key={c.slug}>
-                <td>{!c.parent && <strong>{c.name}</strong>}</td>
+                <td>{!c.parent && <><strong>{c.name}</strong>{c.description && <div className="hint">{c.description}</div>}</>}</td>
                 <td>{c.parent && c.name}</td>
                 <td className="actions">
+                  <button aria-label={`Đưa ${c.name} lên`} disabled={siblingsOf(c)[0]?.slug === c.slug} onClick={() => shift(c, -1)}>↑</button>
+                  <button aria-label={`Đưa ${c.name} xuống`} disabled={siblingsOf(c).at(-1)?.slug === c.slug} onClick={() => shift(c, 1)}>↓</button>
                   <button onClick={() => rename(c)}>Đổi tên</button>
+                  {!c.parent && <button onClick={() => describe(c)}>Mô tả</button>}
                   <button onClick={() => remove(c)}>Xóa</button>
                 </td>
               </tr>
