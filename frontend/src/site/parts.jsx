@@ -51,6 +51,20 @@ export const DateLink = ({ post, tools }) => (
   </li>
 );
 
+// a list row with a small picture, title and date: the home page's "Tin mới"
+export const ThumbLink = ({ post, tools }) => (
+  <li className="thumb-row">
+    <Link to={`/bai-viet/${post.slug}`} className="thumb-link">
+      <Cover post={post} />
+      <span>
+        <span className="thumb-title">{post.title}</span>
+        <time className="date">{fmtDate(post.createdAt)}</time>
+      </span>
+    </Link>
+    {tools}
+  </li>
+);
+
 export const PostCard = ({ post, cat, tools }) => (tools ? <div className="card-wrap"><Card post={post} cat={cat} />{tools}</div> : <Card post={post} cat={cat} />);
 
 const Card = ({ post, cat }) => (

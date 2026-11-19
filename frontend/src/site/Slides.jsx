@@ -44,10 +44,13 @@ export default function Slides({ posts, cats, tools }) {
           return (
             <Link key={p.id} className="lead" to={`/bai-viet/${p.slug}`} aria-roledescription="slide" aria-label={`${k + 1} / ${posts.length}: ${p.title}`}>
               <Cover post={p} />
-              {cat && <span className="cat">{cat.name}</span>}
-              <h2>{p.title}</h2>
-              <p>{p.excerpt}</p>
-              <time className="date">{fmtDate(p.createdAt)}</time>
+              {/* laid over the bottom of the photo on wide screens, under it on phones */}
+              <span className="lead-text">
+                {cat && <span className="cat">{cat.name}</span>}
+                <h2>{p.title}</h2>
+                {p.excerpt && <p>{p.excerpt}</p>}
+                <time className="date">{fmtDate(p.createdAt)}</time>
+              </span>
             </Link>
           );
         })}

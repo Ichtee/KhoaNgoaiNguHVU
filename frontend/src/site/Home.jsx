@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import { api, fmtDate } from '../api';
-import { Cover, DateLink } from './parts';
+import { Cover, DateLink, ThumbLink } from './parts';
 import { topLevel, treeSlugs } from './tree';
 import Intro from './Intro';
 import Slides from './Slides';
@@ -38,7 +38,7 @@ export default function Home() {
   const featured = normal.filter((p) => p.isFeatured).slice(0, 5);
   const slides = featured.length ? featured : normal.slice(0, 1);
   const lead = slides[0];
-  const latest = normal.filter((p) => !slides.includes(p)).slice(0, 6);
+  const latest = normal.filter((p) => !slides.includes(p)).slice(0, 5); // five rows sit level with the featured photo
 
   // one column per top-level category (its children's posts count), skipping what the slides and "Tin mới" already show
   const shown = new Set([...slides, ...latest, ...pinned].map((p) => p.id));
@@ -85,9 +85,9 @@ export default function Home() {
               <Slides posts={slides} cats={cats} tools={tools} />
               {admin && <button type="button" className="edit-pin pick-btn" onClick={() => setPicking(true)}><Star size={13} aria-hidden="true" /> Chọn bài nổi bật</button>}
             </div>
-            <div>
+            <div className="latest">
               <h2 className="label">Tin mới</h2>
-              <ul className="rows">{latest.map((p) => <DateLink key={p.id} post={p} tools={tools(p)} />)}</ul>
+              <ul className="thumbs">{latest.map((p) => <ThumbLink key={p.id} post={p} tools={tools(p)} />)}</ul>
             </div>
           </section>
         )}
