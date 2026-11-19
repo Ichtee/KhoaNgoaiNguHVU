@@ -21,8 +21,6 @@ export default function Layout() {
   // confirms the session: 'checking' -> 'ok', or 'login' (no or dead token) / 'offline' (server unreachable).
   // The public site never shows admin tools, whoever is logged in.
   const inAdmin = pathname === ADMIN_BASE || pathname.startsWith(`${ADMIN_BASE}/`);
-  const base = inAdmin ? ADMIN_BASE : '';
-  const to = (path) => sitePath(base, path);
   const [access, setAccess] = useState('checking');
   const checkAccess = useCallback((quiet) => {
     if (!getToken()) return setAccess('login');
@@ -55,6 +53,9 @@ export default function Layout() {
     navigate('/');
   }, [navigate]);
   const admin = inAdmin && access === 'ok';
+  // links keep the /quan-tri prefix only once the admin is in; on the login form the logo and menu lead to the public site
+  const base = admin ? ADMIN_BASE : '';
+  const to = (path) => sitePath(base, path);
   const adminCtx = useMemo(() => ({ admin, base, signOut, refresh: () => checkAccess(true) }), [admin, base, signOut, checkAccess]);
   const refreshAdmin = adminCtx.refresh;
   const here = pathname + query;
