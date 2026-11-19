@@ -86,7 +86,20 @@ const pickPage = async (b) => ({
   files: cleanFiles(b.files)
 });
 
-const category = (c) => ({ slug: c.slug, name: c.name, parent: c.parent });
+const category = (c) => ({ slug: c.slug, name: c.name, parent: c.parent, description: c.description || '' });
+
+// The admin sends a group's slugs in their new order; each gets its index. Unknown slugs reject the whole request.
+const reorder = (Model, list) => wrap(async (req, res) => {
+  const slugs = req.body.slugs;
+  if (!Array.isArray(slugs) || !slugs.length || slugs.some((s) => typeof s !== 'string') || new Set(slugs).size !== slugs.length) {
+    return res.status(400).json({ message: 'Danh sách thứ tự không hợp lệ' });
+  }
+  if ((await Model.countDocuments({ slug: { $in: slugs } })) !== slugs.length) {
+    return res.status(400).json({ message: 'Có mục không còn tồn tại, hãy tải lại trang' });
+  }
+  await Model.bulkWrite(slugs.map((slug, order) => ({ updateOne: { filter: { slug }, update: { order } } })));
+  res.json(await list());
+});
 const plainPost = (doc) => withPin(doc.toObject({ versionKey: false, transform: (d, r) => { delete r._id; return r; } }));
 
 // ---- auth
@@ -162,9 +175,14 @@ app.post('/api/categories', admin, wrap(async (req, res) => {
   res.status(201).json(category(created));
 }));
 
+// before /:slug, so "order" is never read as a category name
+app.put('/api/categories/order', admin, reorder(Category, async () => (await Category.find().sort('order')).map(category)));
+
 app.put('/api/categories/:slug', admin, wrap(async (req, res) => {
   const name = String(req.body.name || '').trim();
-  const updated = name && (await Category.findOneAndUpdate({ slug: req.params.slug }, { name }, { new: true }));
+  const change = { name };
+  if (req.body.description !== undefined) change.description = String(req.body.description).trim().slice(0, 300);
+  const updated = name && (await Category.findOneAndUpdate({ slug: req.params.slug }, change, { new: true }));
   if (!updated) return res.status(400).json({ message: 'Không đổi được tên chuyên mục' });
   res.json(category(updated));
 }));
@@ -180,6 +198,8 @@ app.delete('/api/categories/:slug', admin, wrap(async (req, res) => {
 
 // ---- pages (fixed content such as history, majors, admissions; `group` = top-level category whose menu lists it)
 app.get('/api/pages', wrap(async (req, res) => res.json(await Page.find().sort('order').select('slug title group -_id').lean())));
+
+app.put('/api/pages/order', admin, reorder(Page, () => Page.find().sort('order').select('slug title group -_id').lean()));
 
 app.get('/api/pages/:slug', wrap(async (req, res) => {
   const page = await Page.findOne({ slug: req.params.slug }).select(`${HIDE} -order`).lean();

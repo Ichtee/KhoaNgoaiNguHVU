@@ -11,6 +11,7 @@ const Category = mongoose.model('Category', new Schema({
   slug: unique,
   name: { type: String, required: true },
   parent: { type: String, default: '' }, // '' = top level, else the slug of a top-level category
+  description: { type: String, default: '' }, // one line under the section's title
   order: { type: Number, default: 0 }
 }));
 
