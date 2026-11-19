@@ -120,14 +120,10 @@ nav { margin-left: auto; }
 .more { display: inline-block; margin-top: 12px; font-size: 14px; font-weight: 600; color: var(--navy); }
 .more:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-.cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 48px 28px; margin-top: 72px; }
-@media (max-width: 1100px) { .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-/* in a narrow column the date sits above the title */
-.cols .rows li { flex-direction: column; gap: 2px; }
-.cols .rows .date { width: auto; padding-top: 0; }
-/* each section column opens with its newest post as a picture card */
-.col-lead { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 16px 0 14px; border-bottom: 1px solid var(--line); }
-.col-lead .cover { width: 100%; aspect-ratio: 16 / 10; border-radius: 10px; }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 52px 48px; margin-top: 72px; }
+/* each section column opens with its newest post as a wide card: picture left, title right */
+.col-lead { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 18px; align-items: start; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.col-lead .cover { width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; }
 .col-lead h3 { display: -webkit-box; margin: 0 0 4px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; font-size: 16px; font-weight: 600; line-height: 1.4; }
 .col-lead:hover h3 { color: var(--navy); text-decoration: underline; text-underline-offset: 3px; }
 
