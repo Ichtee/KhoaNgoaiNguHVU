@@ -221,68 +221,162 @@ function PostEditor({ cats, after, setNotice }) {
   );
 }
 
-// ---- home page: big picture, featured and pinned
+// ---- home page: laid out like the home page itself, each block with plain buttons
 
 const MAX_FEATURED = 5;
+const byDate = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+
+// a small "find a post and pick it" box, opened by "+ Thêm …"
+function AddPost({ posts, pickText, onPick, onClose }) {
+  const [q, setQ] = useState('');
+  const found = filterAdminPosts(posts, [], { q }).slice(0, 8);
+  return (
+    <div className="add-post">
+      <div className="add-post-head">
+        <input type="search" className="big-input" autoFocus placeholder="Gõ vài chữ trong tiêu đề tin…" aria-label="Tìm tin" value={q} onChange={(e) => setQ(e.target.value)} />
+        <button type="button" className="btn ghost" onClick={onClose}>Đóng</button>
+      </div>
+      {found.length === 0 && <p className="empty">Không tìm thấy tin nào.</p>}
+      <ul className="item-list">
+        {found.map((p) => (
+          <li key={p.id} className="item-row">
+            <Cover post={p} />
+            <div className="item-main"><strong>{p.title}</strong><span className="item-meta">{fmtDate(p.createdAt)}</span></div>
+            <div className="item-actions"><button type="button" className="btn" onClick={() => onPick(p)}>{pickText}</button></div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function HomeScreen({ site, reload, posts, loadPosts }) {
   const act = useAction();
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState('');
-  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(''); // '' | 'featured' | 'pinned'
+  const [tagline, setTagline] = useState(site.tagline || '');
+  const [taglineMsg, setTaglineMsg] = useState('');
+  useEffect(() => setTagline(site.tagline || ''), [site.tagline]);
   if (!posts) return <p className="empty">Đang tải…</p>;
 
-  // tick boxes for the newest 40 posts, with every post already featured or pinned on top so it can be unticked
-  const marked = posts.filter((p) => p.isFeatured || p.pinned);
-  const all = [...marked, ...posts.filter((p) => !p.isFeatured && !p.pinned)];
-  const found = q.trim() ? filterAdminPosts(all, [], { q }).sort((a, b) => (b.isFeatured || b.pinned) - (a.isFeatured || a.pinned)) : all;
-  const list = q.trim() ? found : found.slice(0, Math.max(40, marked.length));
-  const featured = posts.filter((p) => p.isFeatured).length;
+  // what the home page shows: pinned notices first; the slides are the newest featured posts that are not pinned
+  const pinned = posts.filter((p) => p.pinnedNow).sort(byDate);
+  const featured = posts.filter((p) => p.isFeatured && !p.pinnedNow).sort(byDate);
+  const onSlides = featured.slice(0, MAX_FEATURED);
+  const hidden = featured.slice(MAX_FEATURED);
 
-  const saveHero = (url) => act(async () => { await api.saveSettings({ ...site, heroImage: url }); await reload(); });
-  const toggle = async (p, key) => {
-    setBusy(p.id + key);
-    await act(async () => { await api.savePost({ ...p, [key]: !p[key] }); await loadPosts(); });
-    setBusy('');
+  const change = async (p, patch) => {
+    setBusy(true);
+    await act(async () => { await api.savePost({ ...p, ...patch }); await loadPosts(); });
+    setBusy(false);
+    setAdding('');
   };
+  const saveSettings = (patch) => act(async () => { await api.saveSettings({ ...site, ...patch }); await reload(); });
+  const hero = site.heroImage ? { '--hero': `url(${JSON.stringify(site.heroImage)})` } : undefined;
+
+  const Card = ({ p, action }) => (
+    <li className="home-card">
+      <Cover post={p} />
+      <div className="home-card-body">
+        <strong>{p.title}</strong>
+        <span className="item-meta">{fmtDate(p.createdAt)}{p.pinnedUntil && p.pinned ? ` · ghim đến hết ${fmtDate(p.pinnedUntil)}` : ''}</span>
+        {action}
+      </div>
+    </li>
+  );
 
   return (
     <>
       <div className="screen-head"><h1>Trang chủ</h1><a className="btn ghost" href="/" target="_blank" rel="noreferrer"><ExternalLink size={16} aria-hidden="true" /> Xem trang chủ</a></div>
+      <p className="hint">Các khối dưới đây xếp theo đúng thứ tự trên trang chủ. Sửa ở đâu, trang chủ đổi ở đó.</p>
+      {error && <p className="err" role="alert">{error}</p>}
 
       <section className="panel">
-        <h2>Ảnh lớn đầu trang chủ</h2>
-        <p className="hint">Nên chọn ảnh ngang, rõ người, khổ rộng. Ảnh được làm tối bên trái để chữ dễ đọc.</p>
-        <CoverField url={site.heroImage} onChange={saveHero} onError={setError} addText="+ Chọn ảnh lớn cho trang chủ" changeText="Đổi ảnh" alt="Ảnh lớn đầu trang chủ" />
-        {error && <p className="err" role="alert">{error}</p>}
+        <h2><span className="step-n" aria-hidden="true">1</span> Ảnh lớn đầu trang</h2>
+        <div className={site.heroImage ? 'hero photo hero-preview' : 'hero hero-preview'} style={hero}>
+          <div className="hero-preview-in">
+            <strong>{site.name}</strong>
+            <span>{[site.university, tagline].filter(Boolean).join(' · ')}</span>
+          </div>
+        </div>
+        <div className="row wrap hero-tools">
+          <CoverPicker onPicked={(url) => saveSettings({ heroImage: url })} onError={setError} text={site.heroImage ? 'Đổi ảnh' : '+ Chọn ảnh'} />
+          {site.heroImage && <button type="button" className="btn ghost" onClick={() => window.confirm('Gỡ ảnh lớn? Đầu trang sẽ thành nền xanh.') && saveSettings({ heroImage: '' })}>Gỡ ảnh</button>}
+        </div>
+        <label className="big-label">Dòng giới thiệu dưới tên khoa
+          <span className="row wrap">
+            <input className="big-input grow" value={tagline} onChange={(e) => { setTagline(e.target.value); setTaglineMsg(''); }} />
+            <button type="button" className="btn" disabled={tagline === (site.tagline || '')} onClick={async () => { await saveSettings({ tagline }); setTaglineMsg('Đã lưu.'); }}>Lưu dòng này</button>
+          </span>
+        </label>
+        {taglineMsg && <p className="ok" role="status">{taglineMsg}</p>}
       </section>
 
       <section className="panel">
-        <h2>Tin hiện ở trang chủ</h2>
-        <p className="hint">
-          Tích ô <b>“Tin nổi bật”</b> để tin hiện ảnh lớn ở khối trình chiếu (tối đa {MAX_FEATURED} tin, đang chọn {featured}).
-          Tích ô <b>“Ghim”</b> để tin hiện ở mục “Thông báo quan trọng”.
-        </p>
-        <input type="search" className="big-input home-search" placeholder="Tìm tin để đưa lên trang chủ…" aria-label="Tìm tin" value={q} onChange={(e) => setQ(e.target.value)} />
-        {q.trim() && list.length === 0 && <p className="empty">Không tìm thấy tin nào.</p>}
-        {featured > MAX_FEATURED && <p className="warn">Đang chọn {featured} tin nổi bật, nhưng trang chủ chỉ hiện {MAX_FEATURED} tin mới nhất. Hãy bỏ tích bớt các tin cũ.</p>}
-        <ul className="item-list">
-          {list.map((p) => (
-            <li key={p.id} className="item-row">
-              <Cover post={p} />
-              <div className="item-main">
-                <strong>{p.title}</strong>
-                <span className="item-meta">{fmtDate(p.createdAt)}</span>
-              </div>
-              <div className="item-actions">
-                <label className="check big"><input type="checkbox" checked={!!p.isFeatured} disabled={busy !== '' || (!p.isFeatured && featured >= MAX_FEATURED)} onChange={() => toggle(p, 'isFeatured')} /> Tin nổi bật</label>
-                <label className="check big"><input type="checkbox" checked={!!p.pinned} disabled={busy !== ''} onChange={() => toggle(p, 'pinned')} /> Ghim</label>
-              </div>
-            </li>
-          ))}
+        <h2><span className="step-n" aria-hidden="true">2</span> Thông báo quan trọng (tin đang ghim)</h2>
+        <p className="hint">Hiện thành danh sách ngay dưới ảnh lớn. Ghim những thông báo ai cũng cần đọc.</p>
+        {pinned.length === 0 && <p className="empty">Chưa ghim tin nào — khối này đang ẩn trên trang chủ.</p>}
+        <ul className="home-cards">
+          {pinned.map((p) => <Card key={p.id} p={p} action={<button type="button" className="btn ghost" disabled={busy} onClick={() => change(p, { pinned: false, pinnedUntil: '' })}>Bỏ ghim</button>} />)}
         </ul>
+        {adding === 'pinned'
+          ? <AddPost posts={posts.filter((p) => !p.pinned)} pickText="Ghim tin này" onPick={(p) => change(p, { pinned: true })} onClose={() => setAdding('')} />
+          : <button type="button" className="btn big" onClick={() => setAdding('pinned')}>+ Ghim thêm tin</button>}
+      </section>
+
+      <section className="panel">
+        <h2><span className="step-n" aria-hidden="true">3</span> Tin nổi bật (khối ảnh lớn có nút chuyển tin)</h2>
+        <p className="hint">Trang chủ hiện {MAX_FEATURED} tin nổi bật mới nhất. Đang hiện {onSlides.length}/{MAX_FEATURED}.</p>
+        {onSlides.length === 0 && <p className="empty">Chưa có tin nổi bật — trang chủ đang tự lấy tin mới nhất.</p>}
+        <ul className="home-cards">
+          {onSlides.map((p) => <Card key={p.id} p={p} action={<button type="button" className="btn ghost" disabled={busy} onClick={() => change(p, { isFeatured: false })}>Bỏ khỏi tin nổi bật</button>} />)}
+        </ul>
+        {hidden.length > 0 && (
+          <div className="warn">
+            <p><b>{hidden.length} tin cũ hơn</b> vẫn đang đánh dấu nổi bật nhưng không hiện (vì đã đủ {MAX_FEATURED} tin mới hơn). Có thể bỏ đánh dấu cho gọn:</p>
+            <ul className="hidden-featured">
+              {hidden.map((p) => (
+                <li key={p.id}><span>{p.title}</span><button type="button" className="btn ghost" disabled={busy} onClick={() => change(p, { isFeatured: false })}>Bỏ đánh dấu</button></li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {adding === 'featured'
+          ? <AddPost posts={posts.filter((p) => !p.isFeatured)} pickText="Đưa lên nổi bật" onPick={(p) => change(p, { isFeatured: true })} onClose={() => setAdding('')} />
+          : <button type="button" className="btn big" onClick={() => setAdding('featured')}>+ Thêm tin nổi bật</button>}
+        {adding === 'featured' && onSlides.length >= MAX_FEATURED && <p className="hint">Đã đủ {MAX_FEATURED} tin: thêm tin mới hơn thì tin nổi bật cũ nhất sẽ không còn hiện.</p>}
+      </section>
+
+      <section className="panel muted-panel">
+        <h2><span className="step-n" aria-hidden="true">4</span> Tin mới và các cột chuyên mục</h2>
+        <p className="hint">Tự động: trang chủ lấy các tin mới đăng nhất, không cần làm gì. Muốn đổi thứ tự các cột, vào <Link to="/quan-tri/nang-cao">Cài đặt nâng cao</Link>.</p>
       </section>
     </>
+  );
+}
+
+// an "upload a picture" button that hands back the uploaded address
+function CoverPicker({ onPicked, onError, text }) {
+  const [busy, setBusy] = useState(false);
+  const pick = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    try {
+      onPicked((await api.upload(file)).url);
+      onError('');
+    } catch (err) {
+      onError(err.message);
+    }
+    setBusy(false);
+  };
+  return (
+    <label className="btn file-btn">
+      {busy ? 'Đang tải ảnh lên…' : text}
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={pick} disabled={busy} />
+    </label>
   );
 }
 

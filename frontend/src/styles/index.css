@@ -277,6 +277,27 @@ nav { margin-left: auto; }
 .list-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 4px; }
 .list-summary p { margin: 0; color: var(--muted); font-weight: 600; }
 .home-search { width: 100%; margin: 6px 0 4px; }
+.panel h2 { display: flex; align-items: center; gap: 10px; }
+.hero-preview { display: flex; align-items: center; min-height: 200px; margin: 12px 0; padding: 24px 28px; border-radius: 12px; }
+.hero-preview-in { display: flex; flex-direction: column; gap: 6px; max-width: 70%; }
+.hero-preview-in strong { font-size: clamp(26px, 3.5vw, 40px); line-height: 1.1; }
+.hero-preview-in span { opacity: .9; }
+.hero-tools { margin-bottom: 14px; }
+.file-btn { position: relative; cursor: pointer; }
+.file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.home-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin: 12px 0 16px; }
+.home-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.home-card .cover { width: 100%; aspect-ratio: 16 / 10; }
+.home-card-body { display: flex; flex-direction: column; gap: 6px; flex: 1; padding: 12px 14px 14px; }
+.home-card-body strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; font-size: 15px; line-height: 1.4; }
+.home-card-body .btn { margin-top: auto; align-self: stretch; min-height: 44px; }
+.add-post { margin-top: 8px; padding: 14px; border: 2px solid var(--navy); border-radius: 12px; background: #fff; }
+.add-post-head { display: flex; gap: 8px; }
+.add-post-head .big-input { flex: 1; min-width: 0; }
+.hidden-featured li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid rgb(0 0 0 / .06); }
+.hidden-featured .btn { min-height: 40px; padding: 6px 14px; }
+.warn p { margin: 0 0 6px; }
+.muted-panel { background: var(--soft); }
 .finder { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
 .big-input, .big-select { min-height: 52px; padding: 10px 14px; border: 2px solid #8a93a8; border-radius: 10px; background: #fff; font: inherit; font-size: 17px; }
 .finder .big-input { flex: 1 1 320px; }
