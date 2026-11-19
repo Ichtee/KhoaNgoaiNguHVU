@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { ArrowUp, Menu, X, Mail, Facebook, MapPin, Phone, Search } from 'lucide-react';
 import { api, getToken, setToken } from '../api';
 import { AdminBar, AdminContext, EditPin } from './admin/OnSite';
-import { menuHref, settingsHref } from './admin/links';
+import { settingsHref } from './admin/links';
 import { topLevel, childrenOf } from './tree';
 
 export default function Layout() {
@@ -86,7 +86,6 @@ export default function Layout() {
               <small>{site.university}</small>
             </span>
           </Link>
-          <EditPin to={settingsHref(here)} label="Sửa thông tin khoa" className="pin-brand" />
 
           <nav className={open ? 'open' : ''}>
             <button className="burger" aria-label={open ? 'Đóng menu' : 'Mở menu'} aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -105,7 +104,6 @@ export default function Layout() {
                   )}
                 </div>
               ))}
-              <EditPin to={menuHref(here)} label="Sửa menu" className="pin-menu" />
               <form onSubmit={search} role="search">
                 <Search size={16} />
                 <input type="search" aria-label="Tìm kiếm bài viết" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm bài viết" />

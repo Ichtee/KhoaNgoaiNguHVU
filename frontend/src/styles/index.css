@@ -227,7 +227,11 @@ nav { margin-left: auto; }
 .label .edit-pin, h1 .edit-pin { font-size: 13px; }
 .pin-brand { margin-left: 0; }
 .post-tools { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.rows .post-tools { margin-left: auto; flex: none; }
+/* in a list the buttons get their own line under the title, lined up with it */
+.rows li:has(.post-tools) { flex-wrap: wrap; row-gap: 6px; }
+.rows li:has(.post-tools) > a { flex: 1 1 0; min-width: 0; } /* the title stays beside its date */
+.rows .post-tools { flex-basis: 100%; padding-left: 98px; }
+@media (max-width: 560px) { .rows .post-tools { padding-left: 94px; } }
 .post-tools.big { margin: 4px 0 8px; }
 .tool { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; color: var(--muted); cursor: pointer; }
 .tool:hover:not(:disabled) { border-color: var(--navy); color: var(--navy); }
@@ -264,9 +268,6 @@ nav { margin-left: auto; }
 @media (pointer: coarse) {
   .tool { width: 44px; height: 44px; }
   .edit-pin { min-height: 44px; }
-}
-@media (max-width: 1120px) {
-  .pin-brand { display: none; } /* the header is tight; the footer and hero carry the same link */
 }
 
 /* admin: a post or page edited the way it is published; settings and Save in a column on the right */
