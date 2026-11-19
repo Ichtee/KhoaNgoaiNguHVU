@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowUp, Menu, X, Mail, Facebook, MapPin, Phone, Search } from 'lucide-react';
 import { api, getToken, setToken } from '../api';
-import { AdminBar, AdminContext, EditPin } from './admin/OnSite';
-import { ADMIN_BASE, settingsHref, sitePath } from './admin/links';
+import { AdminContext } from './admin/OnSite';
 import { Login } from './Admin';
 import { topLevel, childrenOf } from './tree';
 
@@ -15,12 +14,12 @@ export default function Layout() {
   const [q, setQ] = useState('');
   const [showTop, setShowTop] = useState(false);
   const navigate = useNavigate();
-  const { pathname, search: query } = useLocation();
+  const { pathname } = useLocation();
 
-  // The admin area is the site again under /quan-tri, with editing tools. Nothing of it renders until the server
+  // The admin (/quan-tri) is a dashboard. Nothing of it renders until the server
   // confirms the session: 'checking' -> 'ok', or 'login' (no or dead token) / 'offline' (server unreachable).
   // The public site never shows admin tools, whoever is logged in.
-  const inAdmin = pathname === ADMIN_BASE || pathname.startsWith(`${ADMIN_BASE}/`);
+  const inAdmin = pathname === '/quan-tri' || pathname.startsWith('/quan-tri/');
   const [access, setAccess] = useState('checking');
   const checkAccess = useCallback((quiet) => {
     if (!getToken()) return setAccess('login');
@@ -53,12 +52,8 @@ export default function Layout() {
     navigate('/');
   }, [navigate]);
   const admin = inAdmin && access === 'ok';
-  // links keep the /quan-tri prefix only once the admin is in; on the login form the logo and menu lead to the public site
-  const base = admin ? ADMIN_BASE : '';
-  const to = (path) => sitePath(base, path);
-  const adminCtx = useMemo(() => ({ admin, base, signOut, refresh: () => checkAccess(true) }), [admin, base, signOut, checkAccess]);
+  const adminCtx = useMemo(() => ({ admin, signOut, refresh: () => checkAccess(true) }), [admin, signOut, checkAccess]);
   const refreshAdmin = adminCtx.refresh;
-  const here = pathname + query;
 
   // also called by the admin after it changes categories, pages or settings, so the site follows
   const reload = useCallback(
@@ -86,7 +81,7 @@ export default function Layout() {
     e.preventDefault();
     if (!q.trim()) return;
     close();
-    navigate(to(`/tim-kiem?q=${encodeURIComponent(q.trim())}`));
+    navigate(`/tim-kiem?q=${encodeURIComponent(q.trim())}`);
   };
 
   const toTop = () => {
@@ -98,18 +93,17 @@ export default function Layout() {
   const menu = topLevel(cats).map((c) => {
     const kids = childrenOf(cats, c.slug);
     const own = pages.filter((p) => p.group === c.slug);
-    const active = [`/muc/${c.slug}`, ...kids.map((k) => `/muc/${k.slug}`), ...own.map((p) => `/trang/${p.slug}`)].map(to).includes(pathname);
+    const active = [`/muc/${c.slug}`, ...kids.map((k) => `/muc/${k.slug}`), ...own.map((p) => `/trang/${p.slug}`)].includes(pathname);
     return { ...c, kids, own, active };
   });
 
   return (
     <AdminContext.Provider value={adminCtx}>
       <a className="skip" href="#main">Bỏ qua menu, đến nội dung chính</a>
-      <AdminBar />
 
       <header className="top">
         <div className="page bar">
-          <Link to={to('/')} className="brand" onClick={close}>
+          <Link to="/" className="brand" onClick={close}>
             <img src={site.logo || '/logo-khoa.png'} alt="" width="40" height="40" />
             <span>
               <b>{site.name}</b>
@@ -122,14 +116,14 @@ export default function Layout() {
               {open ? <X size={24} /> : <Menu size={24} />}
             </button>
             <div className="links">
-              <NavLink to={to('/')} end onClick={close}>Trang chủ</NavLink>
+              <NavLink to="/" end onClick={close}>Trang chủ</NavLink>
               {menu.map((c) => (
                 <div className="item" key={c.slug}>
-                  <Link to={to(`/muc/${c.slug}`)} className={c.active ? 'active' : ''} onClick={close}>{c.name}</Link>
+                  <Link to={`/muc/${c.slug}`} className={c.active ? 'active' : ''} onClick={close}>{c.name}</Link>
                   {(c.own.length > 0 || c.kids.length > 0) && (
                     <div className="sub">
-                      {c.own.map((p) => <Link key={p.slug} to={to(`/trang/${p.slug}`)} onClick={close}>{p.title}</Link>)}
-                      {c.kids.map((k) => <Link key={k.slug} to={to(`/muc/${k.slug}`)} onClick={close}>{k.name}</Link>)}
+                      {c.own.map((p) => <Link key={p.slug} to={`/trang/${p.slug}`} onClick={close}>{p.title}</Link>)}
+                      {c.kids.map((k) => <Link key={k.slug} to={`/muc/${k.slug}`} onClick={close}>{k.name}</Link>)}
                     </div>
                   )}
                 </div>
@@ -143,7 +137,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main id="main" className={pathname === '/' || pathname === ADMIN_BASE ? '' : 'page'}> {/* home draws its own full-width hero */}
+      <main id="main" className={pathname === '/' ? '' : 'page'}> {/* home draws its own full-width hero */}
         {inAdmin && access !== 'ok' ? (
           <div className="page">
             {access === 'checking' && <p className="empty" role="status">Đang kiểm tra quyền truy cập…</p>}
@@ -152,7 +146,7 @@ export default function Layout() {
           </div>
         ) : (
           /* one key for the management screens, so moving between them does not reload everything */
-          <div key={pathname.startsWith(`${ADMIN_BASE}/quan-ly`) ? 'quan-ly' : pathname} className="route">
+          <div key={inAdmin ? 'quan-tri' : pathname} className="route">
             <Outlet context={{ cats, pages, site, reload, admin, refreshAdmin }} />
           </div>
         )}
@@ -165,7 +159,7 @@ export default function Layout() {
       <footer>
         <div className="page foot">
           <div>
-            <h3>{site.name} <EditPin to={settingsHref(here)} label="Sửa thông tin khoa" className="on-dark" /></h3>
+            <h3>{site.name}</h3>
             <p>{site.university}<br />{site.tagline}</p>
           </div>
           <div>

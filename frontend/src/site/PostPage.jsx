@@ -2,25 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api, fmtDate } from '../api';
 import { Files, Markdown, Pin, PostCard } from './parts';
-import { PostTools, useAdmin, useSitePath } from './admin/OnSite';
 
 // also rendered by the admin's preview, so a draft looks exactly like the published post
-export function PostArticle({ post, cats, tools }) {
-  const link = useSitePath();
+export function PostArticle({ post, cats }) {
   const cat = cats.find((c) => c.slug === post.category);
   const parent = cat?.parent && cats.find((c) => c.slug === cat.parent);
   return (
     <article className="article">
       <p className="crumb">
-        <Link to={link('/')}>Trang chủ</Link>
-        {parent && <> › <Link to={link(`/muc/${parent.slug}`)}>{parent.name}</Link></>}
-        {cat && <> › <Link to={link(`/muc/${cat.slug}`)}>{cat.name}</Link></>}
+        <Link to="/">Trang chủ</Link>
+        {parent && <> › <Link to={`/muc/${parent.slug}`}>{parent.name}</Link></>}
+        {cat && <> › <Link to={`/muc/${cat.slug}`}>{cat.name}</Link></>}
       </p>
       <h1>{post.title}</h1>
       <p className="meta">
         {cat && <span className="cat">{cat.name}</span>} <Pin post={post} /> <time className="date">{fmtDate(post.createdAt)}</time>
       </p>
-      {tools}
       {post.coverImage && <img className="post-cover" src={post.coverImage} alt="" />}
       <Markdown>{post.content}</Markdown>
       <Files files={post.files} />
@@ -31,9 +28,7 @@ export function PostArticle({ post, cats, tools }) {
 export default function PostPage() {
   const { slug } = useParams();
   const { cats } = useOutletContext();
-  const { admin } = useAdmin();
   const navigate = useNavigate();
-  const link = useSitePath();
   const [post, setPost] = useState(null);
   const [related, setRelated] = useState([]);
   const [error, setError] = useState('');
@@ -59,9 +54,7 @@ export default function PostPage() {
 
   return (
     <>
-      <PostArticle post={post} cats={cats} tools={admin && (
-        <PostTools post={post} className="big" onChanged={() => api.post(slug).then(setPost)} onDeleted={() => navigate(link(cat ? `/muc/${cat.slug}` : '/'))} />
-      )} />
+      <PostArticle post={post} cats={cats} />
 
       {related.length > 0 && (
         <>

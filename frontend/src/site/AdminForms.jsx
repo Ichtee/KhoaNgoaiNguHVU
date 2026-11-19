@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } f
 import { Camera, Eye, ImagePlus, X } from 'lucide-react';
 import { api } from '../api';
 import { childrenOf, topLevel } from './tree';
+import { plain } from './SectionHub';
 
 const DOCS = 'application/pdf,.doc,.docx,.xls,.xlsx';
 const IMAGES = 'image/jpeg,image/png,image/webp,image/gif';
@@ -98,14 +99,15 @@ function useDraft(kind, data) {
   useEffect(() => () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* same */ } }, []);
 }
 
-const Actions = ({ busy, error, onCancel }) => (
+// the bar under the form, always in view: one big button that publishes, and a way out
+const Actions = ({ busy, error, onCancel, saveText = 'Lưu và đăng' }) => (
   <div className="form-bar">
     {error && <p className="err" role="alert">{error}</p>}
     <div className="row wrap">
-      <button className="btn" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu'}</button>
-      {/* a link inside the form, so the unsaved-changes guard lets it through */}
-      <a className="btn ghost" href="/xem-nhap" target="_blank" rel="noreferrer"><Eye size={18} /> Xem nháp trên website</a>
+      <button className="btn big" disabled={busy}>{busy ? 'Đang lưu…' : saveText}</button>
       <button type="button" className="btn ghost" onClick={onCancel}>Hủy</button>
+      {/* a link inside the form, so the unsaved-changes guard lets it through */}
+      <a className="btn ghost" href="/xem-nhap" target="_blank" rel="noreferrer"><Eye size={18} aria-hidden="true" /> Xem trước</a>
     </div>
   </div>
 );
@@ -133,8 +135,8 @@ function Grow({ className, value, onChange, label, placeholder, required, oneLin
   );
 }
 
-// The cover where readers see it, with its controls on the picture, as on a social profile.
-export function CoverField({ url, onChange, onError }) {
+// A picture where readers see it, with its controls on it.
+export function CoverField({ url, onChange, onError, addText = '+ Thêm ảnh bìa', changeText = 'Đổi ảnh bìa', alt = 'Ảnh bìa' }) {
   const [busy, setBusy] = useState(false);
   const pick = async (e) => {
     const file = e.target.files[0];
@@ -154,76 +156,80 @@ export function CoverField({ url, onChange, onError }) {
     return (
       <label className="cover-edit empty">
         <ImagePlus size={28} aria-hidden="true" />
-        <span>{busy ? 'Đang tải ảnh lên…' : '+ Thêm ảnh bìa'}</span>
+        <span>{busy ? 'Đang tải ảnh lên…' : addText}</span>
         {input}
       </label>
     );
   }
   return (
     <div className="cover-edit">
-      <img src={url} alt="Ảnh bìa" />
+      <img src={url} alt={alt} />
       <div className="cover-tools">
-        <label className="cover-btn"><Camera size={16} aria-hidden="true" /> {busy ? 'Đang tải…' : 'Đổi ảnh bìa'}{input}</label>
+        <label className="cover-btn"><Camera size={16} aria-hidden="true" /> {busy ? 'Đang tải…' : changeText}{input}</label>
         <button type="button" className="cover-btn" onClick={() => onChange('')}><X size={16} aria-hidden="true" /> Gỡ</button>
       </div>
     </div>
   );
 }
 
-const Side = ({ children, busy, error, onCancel }) => (
-  <aside className="studio-side">
-    <Actions busy={busy} error={error} onCancel={onCancel} />
-    <div className="studio-settings">{children}</div>
-  </aside>
+// one numbered step of a form, so the order to fill it in is obvious
+const Step = ({ n, title, hint, children }) => (
+  <section className="step">
+    <h3><span className="step-n" aria-hidden="true">{n}</span>{title}</h3>
+    {hint && <p className="hint">{hint}</p>}
+    {children}
+  </section>
 );
+
+// "Đào tạo", "Đào tạo › Thông báo đào tạo", … in menu order: one list instead of two linked boxes
+const sectionOptions = (cats) => topLevel(cats).flatMap((c) => [{ slug: c.slug, name: c.name }, ...childrenOf(cats, c.slug).map((k) => ({ slug: k.slug, name: `${c.name} › ${k.name}` }))]);
+
+// readers see a short summary in lists; when none was written, the start of the text serves
+const autoExcerpt = (post) => (post.excerpt.trim() ? post : { ...post, excerpt: plain(post.content).slice(0, 220) });
 
 export function PostForm({ cats, initial, onSaved, onCancel }) {
   const empty = { title: '', excerpt: '', content: '', coverImage: '', category: '', isFeatured: false, pinned: false, pinnedUntil: '' };
   const { f, setF, set, error, setError, busy, submit, cancel } = useSave(
     { ...empty, ...initial, files: initial.files || [], author: initial.author ?? rememberedAuthor() },
-    (post) => { rememberAuthor(post.author); return api.savePost(post); },
+    (post) => { rememberAuthor(post.author); return api.savePost(autoExcerpt(post)); },
     onSaved,
     onCancel
   );
+  const [source, setSource] = useState(false); // the Markdown view, for whoever knows it
   useDraft('post', f);
-
-  // the post stores one slug: a child's, or the big section's own when no child is picked
-  const current = cats.find((c) => c.slug === f.category);
-  const group = current ? current.parent || current.slug : '';
-  const kids = group ? childrenOf(cats, group) : []; // top-level categories have parent '', so never ask for children of ''
   const field = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
 
   return (
-    <form className="studio" onSubmit={submit}>
-      <div className="studio-canvas article">
-        <p className="studio-kicker">{f.id ? 'Sửa bài viết' : 'Bài viết mới'}</p>
+    <form className="simple-form" onSubmit={submit}>
+      <h2>{f.id ? 'Sửa tin' : 'Đăng tin mới'}</h2>
+      <Step n="1" title="Tiêu đề">
+        <Grow className="studio-title" label="Tiêu đề" placeholder="Gõ tiêu đề tin ở đây" required oneLine value={f.title} onChange={field('title')} />
+      </Step>
+      <Step n="2" title="Ảnh bìa" hint="Ảnh lớn hiện đầu tin và ở trang chủ. Không bắt buộc.">
         <CoverField url={f.coverImage} onChange={field('coverImage')} onError={setError} />
-        <span className="cat">{current ? current.name : 'Chưa chọn chuyên mục'}</span>
-        <Grow className="studio-title" label="Tiêu đề" placeholder="Tiêu đề bài viết" required oneLine value={f.title} onChange={field('title')} />
-        <Grow className="studio-lead" label="Tóm tắt" placeholder="Tóm tắt ngắn hiện ở danh sách bài…" value={f.excerpt} onChange={field('excerpt')} />
-        <Body value={f.content} onChange={field('content')} alt={f.title} onError={setError} onCover={field('coverImage')} />
+      </Step>
+      <Step n="3" title="Nội dung" hint="Gõ như soạn văn bản. Muốn thêm ảnh vào giữa bài, bấm “Chèn ảnh”.">
+        <Body value={f.content} onChange={field('content')} alt={f.title} onError={setError} onCover={field('coverImage')} allowSource={source} />
+      </Step>
+      <Step n="4" title="Tin này thuộc mục nào?">
+        <select className="big-select" aria-label="Thuộc mục" value={f.category} onChange={set('category')} required>
+          <option value="" disabled>— Bấm để chọn mục —</option>
+          {sectionOptions(cats).map((o) => <option key={o.slug} value={o.slug}>{o.name}</option>)}
+        </select>
+      </Step>
+      <Step n="5" title="Hiện ở trang chủ" hint="Không bắt buộc.">
+        <label className="check big"><input type="checkbox" checked={f.isFeatured} onChange={set('isFeatured')} /> Đưa lên khối tin nổi bật (ảnh lớn đầu trang chủ)</label>
+        <label className="check big"><input type="checkbox" checked={f.pinned} onChange={set('pinned')} /> Ghim lên mục “Thông báo quan trọng”</label>
+        {f.pinned && <label className="sub-field">Bỏ ghim sau ngày (để trống = ghim mãi)<input type="date" value={f.pinnedUntil} onChange={set('pinnedUntil')} /></label>}
+      </Step>
+      <details className="more-options">
+        <summary>Tùy chọn thêm</summary>
+        <label>Tóm tắt ngắn (để trống thì tự lấy đầu bài)<textarea rows="2" value={f.excerpt} onChange={set('excerpt')} /></label>
+        <label>Tên người đăng (chỉ người quản trị thấy)<input value={f.author} onChange={set('author')} maxLength={80} /></label>
         <FilesField files={f.files} onChange={field('files')} onError={setError} />
-      </div>
-      <Side busy={busy} error={error} onCancel={cancel}>
-        <label>Mục lớn
-          <select value={group} onChange={(e) => setF({ ...f, category: e.target.value })} required>
-            <option value="" disabled>— Chọn mục lớn —</option>
-            {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
-          </select>
-        </label>
-        {kids.length > 0 && (
-          <label>Mục con
-            <select value={f.category === group ? '' : f.category} onChange={(e) => setF({ ...f, category: e.target.value || group })}>
-              <option value="">— Không chọn —</option>
-              {kids.map((k) => <option key={k.slug} value={k.slug}>{k.name}</option>)}
-            </select>
-          </label>
-        )}
-        <label className="check"><input type="checkbox" checked={f.isFeatured} onChange={set('isFeatured')} /> Bài nổi bật (hiện lớn ở trang chủ)</label>
-        <label className="check"><input type="checkbox" checked={f.pinned} onChange={set('pinned')} /> Ghim vào “Thông báo quan trọng”</label>
-        {f.pinned && <label>Ghim đến hết ngày (để trống = ghim cho tới khi bỏ ghim)<input type="date" value={f.pinnedUntil} onChange={set('pinnedUntil')} /></label>}
-        <label>Người đăng (chỉ hiện trong trang quản trị)<input value={f.author} onChange={set('author')} maxLength={80} /></label>
-      </Side>
+        <label className="check"><input type="checkbox" checked={source} onChange={(e) => setSource(e.target.checked)} /> Hiện nút sửa mã Markdown (cho người rành kỹ thuật)</label>
+      </details>
+      <Actions busy={busy} error={error} onCancel={cancel} saveText={f.id ? 'Lưu thay đổi' : 'Đăng tin'} />
     </form>
   );
 }
@@ -236,27 +242,33 @@ export function PageForm({ cats, initial, onSaved, onCancel }) {
     onSaved,
     onCancel
   );
+  const [source, setSource] = useState(false);
   useDraft('page', f);
   const field = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
-  const group = cats.find((c) => c.slug === f.group);
 
   return (
-    <form className="studio" onSubmit={submit}>
-      <div className="studio-canvas article">
-        <p className="studio-kicker">{f.slug ? 'Sửa trang' : 'Trang mới'}</p>
-        <span className="cat">{group ? group.name : 'Không hiện trong menu'}</span>
-        <Grow className="studio-title" label="Tiêu đề" placeholder="Tiêu đề trang" required oneLine value={f.title} onChange={field('title')} />
-        <Body value={f.content} onChange={field('content')} alt={f.title} onError={setError} />
+    <form className="simple-form" onSubmit={submit}>
+      <h2>{f.slug ? `Sửa trang “${f.title}”` : 'Thêm trang mới'}</h2>
+      <Step n="1" title="Tên trang">
+        <Grow className="studio-title" label="Tên trang" placeholder="Ví dụ: Lịch sử hình thành" required oneLine value={f.title} onChange={field('title')} />
+      </Step>
+      <Step n="2" title="Nội dung" hint="Gõ như soạn văn bản. Muốn thêm ảnh, bấm “Chèn ảnh”.">
+        <Body value={f.content} onChange={field('content')} alt={f.title} onError={setError} allowSource={source} />
+      </Step>
+      <Step n="3" title="Tệp đính kèm" hint="Ví dụ các biểu mẫu Word, PDF cho người xem tải về. Không bắt buộc.">
         <FilesField files={f.files} onChange={field('files')} onError={setError} />
-      </div>
-      <Side busy={busy} error={error} onCancel={cancel}>
-        <label>Hiện trong menu của mục
-          <select value={f.group} onChange={set('group')}>
-            <option value="">— Không hiện trong menu (chỉ vào bằng liên kết) —</option>
-            {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
-          </select>
-        </label>
-      </Side>
+      </Step>
+      <Step n="4" title="Hiện trong menu nào?">
+        <select className="big-select" aria-label="Hiện trong menu của mục" value={f.group} onChange={set('group')}>
+          <option value="">Không hiện trong menu</option>
+          {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>Menu “{c.name}”</option>)}
+        </select>
+      </Step>
+      <details className="more-options">
+        <summary>Tùy chọn thêm</summary>
+        <label className="check"><input type="checkbox" checked={source} onChange={(e) => setSource(e.target.checked)} /> Hiện nút sửa mã Markdown (cho người rành kỹ thuật)</label>
+      </details>
+      <Actions busy={busy} error={error} onCancel={cancel} saveText="Lưu trang" />
     </form>
   );
 }

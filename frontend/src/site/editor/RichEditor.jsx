@@ -9,18 +9,19 @@ import { editorExtensions, fromMarkdown, toMarkdown } from './extensions';
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const imageFiles = (list) => [...(list || [])].filter((f) => f.type.startsWith('image/'));
 
-function Tool({ label, on, onClick, disabled, children }) {
+// `text` is the short word shown next to the icon, so nobody has to guess what a symbol means
+function Tool({ label, text, on, onClick, disabled, children }) {
   return (
     <button type="button" className={on ? 'on' : ''} aria-label={label} title={label} aria-pressed={on === undefined ? undefined : on}
       disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick}>
-      {children}
+      {children}<span className="tool-text">{text || label}</span>
     </button>
   );
 }
 
 // The post body, edited the way it will look. It reads and writes Markdown (see extensions.js),
 // so the stored post and the public site do not change. Loaded only by the admin (React.lazy).
-export default function RichEditor({ value, onChange, alt = '', onError, onCover, placeholder = 'Viết nội dung bài…' }) {
+export default function RichEditor({ value, onChange, alt = '', onError, onCover, allowSource = false, placeholder = 'Viết nội dung bài…' }) {
   const [raw, setRaw] = useState(false); // the "Sửa mã Markdown" view
   const [busy, setBusy] = useState(false);
   const picker = useRef(null);
@@ -112,26 +113,28 @@ export default function RichEditor({ value, onChange, alt = '', onError, onCover
       <div className="rte-bar" role="toolbar" aria-label="Định dạng nội dung">
         {!raw && (
           <>
-            <Tool label="Đậm" on={s.bold} onClick={run((c) => c.toggleBold())}><Bold size={18} /></Tool>
+            <Tool label="In đậm" text="Đậm" on={s.bold} onClick={run((c) => c.toggleBold())}><Bold size={18} /></Tool>
             <Tool label="Nghiêng" on={s.italic} onClick={run((c) => c.toggleItalic())}><Italic size={18} /></Tool>
             <Tool label="Tiêu đề" on={s.h2} onClick={run((c) => c.toggleHeading({ level: 2 }))}><Heading2 size={18} /></Tool>
-            <Tool label="Tiêu đề nhỏ" on={s.h3} onClick={run((c) => c.toggleHeading({ level: 3 }))}><Heading3 size={18} /></Tool>
+            <Tool label="Tiêu đề nhỏ" text="Tiêu đề nhỏ" on={s.h3} onClick={run((c) => c.toggleHeading({ level: 3 }))}><Heading3 size={18} /></Tool>
             <span className="rte-sep" aria-hidden="true" />
             <Tool label="Danh sách" on={s.bullet} onClick={run((c) => c.toggleBulletList())}><List size={18} /></Tool>
-            <Tool label="Danh sách số" on={s.ordered} onClick={run((c) => c.toggleOrderedList())}><ListOrdered size={18} /></Tool>
+            <Tool label="Danh sách đánh số" text="Đánh số" on={s.ordered} onClick={run((c) => c.toggleOrderedList())}><ListOrdered size={18} /></Tool>
             <Tool label="Trích dẫn" on={s.quote} onClick={run((c) => c.toggleBlockquote())}><Quote size={18} /></Tool>
             <Tool label="Liên kết" on={s.link} onClick={setLink}><Link2 size={18} /></Tool>
             <span className="rte-sep" aria-hidden="true" />
-            <Tool label={busy ? 'Đang tải ảnh lên…' : 'Thêm ảnh'} disabled={busy} onClick={() => picker.current?.click()}><ImagePlus size={18} /></Tool>
-            <Tool label="Chèn bảng" onClick={run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }))}><Table size={18} /></Tool>
+            <Tool label={busy ? 'Đang tải ảnh lên…' : 'Chèn ảnh'} disabled={busy} onClick={() => picker.current?.click()}><ImagePlus size={18} /></Tool>
+            <Tool label="Chèn bảng" text="Bảng" onClick={run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }))}><Table size={18} /></Tool>
             <span className="rte-sep" aria-hidden="true" />
             <Tool label="Hoàn tác" disabled={!s.undo} onClick={run((c) => c.undo())}><Undo2 size={18} /></Tool>
             <Tool label="Làm lại" disabled={!s.redo} onClick={run((c) => c.redo())}><Redo2 size={18} /></Tool>
           </>
         )}
-        <button type="button" className="rte-raw" onClick={toggleRaw}>
-          <Code2 size={16} aria-hidden="true" /> {raw ? 'Quay lại trình soạn thảo' : 'Sửa mã Markdown'}
-        </button>
+        {(allowSource || raw) && (
+          <button type="button" className="rte-raw" onClick={toggleRaw}>
+            <Code2 size={16} aria-hidden="true" /> {raw ? 'Quay lại trình soạn thảo' : 'Sửa mã Markdown'}
+          </button>
+        )}
 
         {/* what can be done to the thing under the cursor */}
         {!raw && s.image && (

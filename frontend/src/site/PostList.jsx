@@ -3,8 +3,6 @@ import { Link, useOutletContext, useParams, useSearchParams } from 'react-router
 import { api } from '../api';
 import { PostCard } from './parts';
 import SectionHub from './SectionHub';
-import { EditPin, PostTools, useAdmin, useHere, useSitePath } from './admin/OnSite';
-import { menuHref, newPostHref } from './admin/links';
 
 const PER_PAGE = 9;
 const DAY = 864e5;
@@ -35,9 +33,6 @@ export default function PostList() {
   const [params, setParams] = useSearchParams();
   const q = params.get('q') || '';
   const { cats, pages, site } = useOutletContext();
-  const { admin } = useAdmin();
-  const here = useHere();
-  const link = useSitePath();
   const [posts, setPosts] = useState(null);
   const [page, setPage] = useState(1);
 
@@ -86,7 +81,6 @@ export default function PostList() {
   const shown = posts ? filterPosts(posts, f) : [];
   const pageCount = Math.ceil(shown.length / PER_PAGE);
 
-  const writeHere = slug && <EditPin to={newPostHref(slug, here)} label="+ Viết bài trong mục này" />;
   const count = posts && <p role="status">{filtering ? `${shown.length} / ${posts.length} bài viết` : `${posts.length} bài viết`}</p>;
 
   return (
@@ -94,16 +88,14 @@ export default function PostList() {
       {fixed.length > 0 && cat ? (
         <>
           <SectionHub cat={cat} pages={fixed} site={site} showContact={posts !== null && posts.length === 0} />
-          {posts && posts.length === 0 && writeHere && <div className="pagehead in-section">{writeHere}</div>}
-          {posts && posts.length > 0 && <div className="pagehead in-section"><h2 className="label">Bài viết trong mục</h2>{count}{writeHere}</div>}
+          {posts && posts.length > 0 && <div className="pagehead in-section"><h2 className="label">Bài viết trong mục</h2>{count}</div>}
         </>
       ) : (
         <div className="pagehead">
-          {parent && <p className="crumb"><Link to={link('/')}>Trang chủ</Link> › <Link to={link(`/muc/${parent.slug}`)}>{parent.name}</Link></p>}
-          <h1>{title}{cat && <EditPin to={menuHref(here)} label="Sửa mục" />}</h1>
+          {parent && <p className="crumb"><Link to="/">Trang chủ</Link> › <Link to={`/muc/${parent.slug}`}>{parent.name}</Link></p>}
+          <h1>{title}</h1>
           {cat?.description && <p className="lede">{cat.description}</p>}
           {count}
-          {writeHere}
         </div>
       )}
 
@@ -149,7 +141,7 @@ export default function PostList() {
       {posts && posts.length > 0 && !shown.length && <p className="empty">Không có bài nào khớp bộ lọc.</p>}
       <div className="grid">
         {shown.slice((page - 1) * PER_PAGE, page * PER_PAGE).map((p) => (
-          <PostCard key={p.id} post={p} cat={cats.find((c) => c.slug === p.category)} tools={admin && <PostTools post={p} onChanged={load} />} />
+          <PostCard key={p.id} post={p} cat={cats.find((c) => c.slug === p.category)} />
         ))}
       </div>
       {pageCount > 1 && (

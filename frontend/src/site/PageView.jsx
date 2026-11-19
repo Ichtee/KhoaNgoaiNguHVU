@@ -3,13 +3,10 @@ import { Link, useOutletContext, useParams } from 'react-router-dom';
 import { Files, Markdown } from './parts';
 import { api } from '../api';
 import { ContactCard, iconFor, plain } from './SectionHub';
-import { EditPin, MoveButtons, useAdminAction, useHere, useSitePath } from './admin/OnSite';
-import { editPageHref, settingsHref } from './admin/links';
-import { move } from './admin/order';
 
 export default function PageView() {
   const { slug } = useParams();
-  const { cats, pages, site, reload } = useOutletContext();
+  const { cats, pages, site } = useOutletContext();
   const [page, setPage] = useState(null);
   const [error, setError] = useState('');
 
@@ -23,14 +20,11 @@ export default function PageView() {
   if (error) return <p className="empty">{error}</p>;
   if (!page) return <p className="empty">Đang tải…</p>;
 
-  return <PageArticle page={page} cats={cats} pages={pages} site={site} reload={reload} />;
+  return <PageArticle page={page} cats={cats} pages={pages} site={site} />;
 }
 
 // also rendered by the admin's preview, which may not pass pages or site
-export function PageArticle({ page, cats, pages = [], site = {}, reload }) {
-  const here = useHere();
-  const act = useAdminAction();
-  const link = useSitePath();
+export function PageArticle({ page, cats, pages = [], site = {} }) {
   const group = cats.find((c) => c.slug === page.group);
   const siblings = group ? pages.filter((p) => p.group === group.slug) : [];
   const thin = plain(page.content).length < 80; // a page still waiting for its content
@@ -39,10 +33,10 @@ export function PageArticle({ page, cats, pages = [], site = {}, reload }) {
     <div className="doc">
       <article className="article doc-main">
         <p className="crumb">
-          <Link to={link('/')}>Trang chủ</Link>
-          {group && <> › <Link to={link(`/muc/${group.slug}`)}>{group.name}</Link></>}
+          <Link to="/">Trang chủ</Link>
+          {group && <> › <Link to={`/muc/${group.slug}`}>{group.name}</Link></>}
         </p>
-        <h1>{page.title}{page.slug && <EditPin to={editPageHref(page.slug, here)} label="Sửa trang này" />}</h1>
+        <h1>{page.title}</h1>
         <Markdown>{page.content}</Markdown>
         {thin && (site.email || site.phone) && (
           <p className="note">
@@ -61,18 +55,14 @@ export function PageArticle({ page, cats, pages = [], site = {}, reload }) {
             <nav className="side-nav" aria-label={`Các trang trong mục ${group.name}`}>
               <h2>{group.name}</h2>
               <ul>
-                {siblings.map((p, i) => {
+                {siblings.map((p) => {
                   const Icon = iconFor(p.title);
                   const current = p.slug === page.slug;
                   return (
                     <li key={p.slug}>
-                      <Link to={link(`/trang/${p.slug}`)} className={current ? 'on' : ''} aria-current={current ? 'page' : undefined}>
+                      <Link to={`/trang/${p.slug}`} className={current ? 'on' : ''} aria-current={current ? 'page' : undefined}>
                         <Icon size={17} aria-hidden="true" /> {p.title}
                       </Link>
-                      <MoveButtons index={i} count={siblings.length} label={p.title} onMove={(dir) => {
-                        const next = move(siblings.map((x) => x.slug), i, dir);
-                        if (next) act(async () => { await api.reorderPages(next); await reload?.(); });
-                      }} />
                     </li>
                   );
                 })}
@@ -80,7 +70,6 @@ export function PageArticle({ page, cats, pages = [], site = {}, reload }) {
             </nav>
           )}
           <ContactCard site={site} />
-          <EditPin to={settingsHref(here)} label="Sửa thông tin liên hệ" />
         </aside>
       )}
     </div>

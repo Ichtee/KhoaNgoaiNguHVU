@@ -3,13 +3,8 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fmtDate } from '../api';
-import { useSitePath } from './admin/OnSite';
 
-// a link to a post that stays inside the current area (public site or /quan-tri)
-function PostLink({ post, ...props }) {
-  const site = useSitePath();
-  return <Link to={site(`/bai-viet/${post.slug}`)} {...props} />;
-}
+const PostLink = ({ post, ...props }) => <Link to={`/bai-viet/${post.slug}`} {...props} />;
 
 // react-markdown never renders raw HTML and strips javascript: links, so admin text is safe to show.
 const external = ({ href, children }) =>
@@ -48,18 +43,16 @@ export const Cover = ({ post }) => (
   />
 );
 
-// `tools` = the admin's buttons for this post (nothing for visitors), kept outside the link
-export const DateLink = ({ post, tools }) => (
+export const DateLink = ({ post }) => (
   <li>
     <time className="date">{fmtDate(post.createdAt)}</time>
     <Pin post={post} />
     <PostLink post={post}>{post.title}</PostLink>
-    {tools}
   </li>
 );
 
 // a list row with a small picture, title and date: the home page's "Tin mới"
-export const ThumbLink = ({ post, tools }) => (
+export const ThumbLink = ({ post }) => (
   <li className="thumb-row">
     <PostLink post={post} className="thumb-link">
       <Cover post={post} />
@@ -68,13 +61,10 @@ export const ThumbLink = ({ post, tools }) => (
         <time className="date">{fmtDate(post.createdAt)}</time>
       </span>
     </PostLink>
-    {tools}
   </li>
 );
 
-export const PostCard = ({ post, cat, tools }) => (tools ? <div className="card-wrap"><Card post={post} cat={cat} />{tools}</div> : <Card post={post} cat={cat} />);
-
-const Card = ({ post, cat }) => (
+export const PostCard = ({ post, cat }) => (
   <PostLink post={post} className="card">
     <Cover post={post} />
     <span className="cat">{cat?.name}<Pin post={post} /></span>

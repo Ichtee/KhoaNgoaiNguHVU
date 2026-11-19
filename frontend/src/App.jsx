@@ -18,15 +18,7 @@ export default function App() {
         <Route path="muc/:slug" element={<PostList />} />
         <Route path="tim-kiem" element={<PostList />} />
         <Route path="bai-viet/:slug" element={<PostPage />} />
-        {/* the admin area: the same pages with editing tools; Layout lets nothing here render before the server confirms the session */}
-        <Route path="quan-tri">
-          <Route index element={<Home />} />
-          <Route path="trang/:slug" element={<PageView />} />
-          <Route path="muc/:slug" element={<PostList />} />
-          <Route path="tim-kiem" element={<PostList />} />
-          <Route path="bai-viet/:slug" element={<PostPage />} />
-          <Route path="*" element={<Admin />} />
-        </Route>
+        <Route path="quan-tri/*" element={<Admin />} />
         <Route path="xem-nhap" element={<Draft />} />
         <Route path="*" element={<p className="empty">Không tìm thấy trang.</p>} />
       </Route>

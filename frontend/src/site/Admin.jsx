@@ -1,21 +1,37 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link, NavLink, Route, Routes, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
-import { ExternalLink } from 'lucide-react';
+import { Link, Route, Routes, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ExternalLink, FileText, Home, LogOut, Newspaper, PenLine, Phone, Settings2 } from 'lucide-react';
 import { api, fmtDate, setToken } from '../api';
-import { PostForm, PageForm } from './AdminForms';
-import { childrenOf, topLevel, treeSlugs } from './tree';
-import { safeReturn } from './admin/links';
+import { CoverField, PostForm, PageForm } from './AdminForms';
+import { Cover } from './parts';
+import { childrenOf, topLevel } from './tree';
 import { useAdmin } from './admin/OnSite';
 import { move } from './admin/order';
 
-// a plain message, or { text, href } after a save so the admin can open what they just published
-const Notice = ({ notice }) =>
-  notice ? (
-    <p className="ok" role="status">
-      {notice.text || notice}
-      {notice.href && <> <a href={notice.href} target="_blank" rel="noreferrer">Xem trên website →</a></>}
-    </p>
-  ) : null;
+// The admin, for people who are not technical: a dashboard of plain tasks, one screen per task,
+// buttons that say what they do. Layout has already confirmed the session before any of this renders.
+
+const EXPIRED = 'Phiên đăng nhập đã hết, hãy đăng nhập lại.';
+
+// runs a save or delete; an ended session sends the admin to the login form, anything else is shown
+function useAction() {
+  const { signOut } = useAdmin();
+  return async (fn) => {
+    try {
+      await fn();
+      return true;
+    } catch (err) {
+      if (/đăng nhập/i.test(err.message)) { alert(EXPIRED); signOut(); } else alert(err.message);
+      return false;
+    }
+  };
+}
+
+// back where the admin came from inside the admin, or to the dashboard when the page was opened directly
+function useGoBack() {
+  const navigate = useNavigate();
+  return (fallback = '/quan-tri') => (window.history.state?.idx > 0 ? navigate(-1) : navigate(fallback));
+}
 
 // also shown by Layout whenever /quan-tri is opened without a valid session
 export function Login({ onDone }) {
@@ -36,329 +52,113 @@ export function Login({ onDone }) {
       <input aria-label="Tên đăng nhập" autoComplete="username" placeholder="Tên đăng nhập" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} required />
       <input aria-label="Mật khẩu" type="password" autoComplete="current-password" placeholder="Mật khẩu" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} required />
       {error && <p className="err" role="alert">{error}</p>}
-      <button className="btn">Đăng nhập</button>
+      <button className="btn big">Đăng nhập</button>
     </form>
   );
 }
 
-// Posts of one big section (or of every section when there is no :slug), with sub-section filter and title search.
-function PostsAdmin({ posts, cats, reload, guard }) {
-  const { slug } = useParams();
-  const [sub, setSub] = useState('');
+// ---- dashboard
+
+const TASKS = [
+  ['tin/moi', PenLine, 'Đăng tin mới', 'Viết và đăng một tin, thông báo hay bài hoạt động'],
+  ['tin', Newspaper, 'Sửa hoặc xóa tin đã đăng', 'Tìm lại tin cũ để sửa chữ, đổi ảnh hoặc xóa'],
+  ['trang-chu', Home, 'Trang chủ', 'Đổi ảnh lớn đầu trang, chọn tin nổi bật và tin ghim'],
+  ['trang', FileText, 'Các trang thông tin', 'Giới thiệu, lịch sử, tuyển sinh, biểu mẫu…'],
+  ['lien-he', Phone, 'Thông tin liên hệ & logo', 'Địa chỉ, số điện thoại, email, Facebook, logo']
+];
+
+function Dashboard({ posts, pages }) {
+  const counts = { tin: posts && `${posts.length} tin`, trang: `${pages.length} trang` };
+  return (
+    <>
+      <h1 className="desk-hello">Xin chào! Hôm nay bạn muốn làm gì?</h1>
+      <ul className="tasks">
+        {TASKS.map(([to, Icon, title, hint]) => (
+          <li key={to}>
+            <Link className="task" to={`/quan-tri/${to}`}>
+              <span className="task-icon"><Icon size={30} aria-hidden="true" /></span>
+              <strong>{title}</strong>
+              <span>{hint}</span>
+              {counts[to] && <small>{counts[to]}</small>}
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <p className="advanced-link"><Link to="/quan-tri/nang-cao"><Settings2 size={16} aria-hidden="true" /> Cài đặt nâng cao: menu, chuyên mục và thứ tự trang</Link></p>
+    </>
+  );
+}
+
+// ---- posts
+
+const PAGE_SIZE = 20;
+const fold = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+
+function PostsScreen({ posts, cats, loadPosts }) {
+  const act = useAction();
   const [q, setQ] = useState('');
-  const [editing, setEditing] = useState(null); // null = list, object = form
-  const [notice, setNotice] = useState('');
-
-  // a new section starts clean: no filter, no open form, no old message
-  useEffect(() => { setSub(''); setQ(''); setEditing(null); setNotice(''); }, [slug]);
-
-  const section = cats.find((c) => c.slug === slug);
-  if (slug && cats.length && !section) return <p className="empty">Không có mục này.</p>;
+  const [cat, setCat] = useState('');
+  const [shown, setShown] = useState(PAGE_SIZE);
   if (!posts) return <p className="empty">Đang tải…</p>;
 
-  const nameOf = (s) => cats.find((c) => c.slug === s)?.name || s;
-  const inSection = (s) => posts.filter((p) => treeSlugs(cats, s).includes(p.category));
-  const kids = slug ? childrenOf(cats, slug) : [];
-  const scope = slug ? (sub ? posts.filter((p) => p.category === sub) : inSection(slug)) : posts;
-  const words = q.trim().toLowerCase();
-  const list = words ? scope.filter((p) => p.title.toLowerCase().includes(words)) : scope;
-  const target = sub || slug || '';
-
-  if (editing) {
-    return (
-      <PostForm
-        cats={cats}
-        initial={editing}
-        onCancel={() => setEditing(null)}
-        onSaved={(saved) => { setEditing(null); setNotice({ text: `Đã lưu bài “${saved.title}”.`, href: `/bai-viet/${saved.slug}` }); reload(); }}
-      />
-    );
-  }
+  const nameOf = (slug) => {
+    const c = cats.find((x) => x.slug === slug);
+    const parent = c?.parent && cats.find((x) => x.slug === c.parent);
+    return c ? (parent ? `${parent.name} › ${c.name}` : c.name) : '';
+  };
+  const inSection = (p) => !cat || p.category === cat || cats.find((c) => c.slug === p.category)?.parent === cat;
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  const list = posts.filter((p) => inSection(p) && words.every((w) => fold(p.title).includes(w)));
 
   const remove = (p) => {
-    if (window.confirm(`Xóa bài "${p.title}"? Không khôi phục được.`)) {
-      guard(async () => { await api.deletePost(p.id); setNotice(`Đã xóa bài “${p.title}”.`); await reload(); });
-    }
+    if (window.confirm(`Xóa tin “${p.title}”?\n\nTin sẽ biến mất khỏi trang web và không lấy lại được.`)) act(async () => { await api.deletePost(p.id); await loadPosts(); });
   };
 
   return (
-    <div className="box">
-      <div className="row between wrap">
-        <h2>{section ? section.name : 'Tất cả bài viết'}</h2>
-        <button className="btn" onClick={() => { setNotice(''); setEditing({ category: target }); }}>
-          + Viết bài {target ? `trong “${nameOf(target)}”` : 'mới'}
-        </button>
+    <>
+      <div className="screen-head">
+        <h1>Tin đã đăng</h1>
+        <Link className="btn big" to="/quan-tri/tin/moi">+ Đăng tin mới</Link>
       </div>
-      <Notice notice={notice} />
-
-      {kids.length > 0 && (
-        <div className="chips" role="group" aria-label="Lọc theo mục con">
-          <button className={sub ? '' : 'on'} aria-pressed={!sub} onClick={() => setSub('')}>Tất cả ({inSection(slug).length})</button>
-          {kids.map((k) => (
-            <button key={k.slug} className={sub === k.slug ? 'on' : ''} aria-pressed={sub === k.slug} onClick={() => setSub(k.slug)}>
-              {k.name} ({posts.filter((p) => p.category === k.slug).length})
-            </button>
-          ))}
-        </div>
-      )}
-
-      <input className="search" type="search" placeholder="Tìm theo tiêu đề" aria-label="Tìm bài theo tiêu đề" value={q} onChange={(e) => setQ(e.target.value)} />
-
-      {list.length === 0 ? (
-        <p className="empty">{words ? 'Không có bài nào khớp.' : 'Chưa có bài nào trong mục này.'}</p>
-      ) : (
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr><th>Ngày</th><th>Tiêu đề</th>{!slug && <th>Mục lớn</th>}<th>Mục con</th><th>Người đăng</th><th /></tr>
-            </thead>
-            <tbody>
-              {list.map((p) => {
-                const c = cats.find((x) => x.slug === p.category);
-                return (
-                  <tr key={p.id}>
-                    <td>{fmtDate(p.createdAt)}</td>
-                    <td>
-                      {p.title}
-                      {p.isFeatured && <span className="tag">Nổi bật</span>}
-                      {p.pinnedNow && <span className="tag">Đang ghim</span>}
-                    </td>
-                    {!slug && <td>{c?.parent ? nameOf(c.parent) : c?.name}</td>}
-                    <td>{c?.parent ? c.name : '—'}</td>
-                    <td>{p.author || '—'}</td>
-                    <td className="actions">
-                      <a href={`/bai-viet/${p.slug}`} target="_blank" rel="noreferrer">Xem</a>
-                      <button onClick={() => { setNotice(''); setEditing(p); }}>Sửa</button>
-                      <button onClick={() => remove(p)}>Xóa</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PagesAdmin({ cats, pages, reload, guard }) {
-  const [editing, setEditing] = useState(null);
-  const [notice, setNotice] = useState('');
-  const nameOf = (s) => cats.find((c) => c.slug === s)?.name || s;
-
-  if (editing) {
-    return (
-      <PageForm
-        cats={cats}
-        initial={editing}
-        onCancel={() => setEditing(null)}
-        onSaved={(saved) => { setEditing(null); setNotice({ text: `Đã lưu trang “${saved.title}”.`, href: `/trang/${saved.slug}` }); reload(); }}
-      />
-    );
-  }
-
-  const remove = (p) => {
-    if (window.confirm(`Xóa trang "${p.title}"? Không khôi phục được.`)) {
-      guard(async () => { await api.deletePage(p.slug); setNotice(`Đã xóa trang “${p.title}”.`); await reload(); });
-    }
-  };
-
-  return (
-    <div className="box">
-      <div className="row between wrap">
-        <h2>Trang cố định</h2>
-        <button className="btn" onClick={() => { setNotice(''); setEditing({}); }}>+ Trang mới</button>
-      </div>
-      <p className="hint">Nội dung ít thay đổi như lịch sử, giới thiệu ngành, tuyển sinh. Trang hiện trong menu của mục đã chọn.</p>
-      <Notice notice={notice} />
-      <div className="table-wrap">
-        <table className="admin-table">
-          <thead><tr><th>Trang</th><th>Hiện trong menu của mục</th><th /></tr></thead>
-          <tbody>
-            {pages.map((p) => (
-              <tr key={p.slug}>
-                <td>{p.title}</td>
-                <td>{p.group ? nameOf(p.group) : '—'}</td>
-                <td className="actions">
-                  {(() => {
-                    // ↑↓ among the pages listed in the same section's menu
-                    const group = pages.filter((x) => x.group === p.group).map((x) => x.slug);
-                    const i = group.indexOf(p.slug);
-                    const shift = (dir) => { const next = move(group, i, dir); if (next) guard(async () => { await api.reorderPages(next); await reload(); }); };
-                    return p.group && group.length > 1 && (
-                      <>
-                        <button aria-label={`Đưa ${p.title} lên`} disabled={i === 0} onClick={() => shift(-1)}>↑</button>
-                        <button aria-label={`Đưa ${p.title} xuống`} disabled={i === group.length - 1} onClick={() => shift(1)}>↓</button>
-                      </>
-                    );
-                  })()}
-                  <a href={`/trang/${p.slug}`} target="_blank" rel="noreferrer">Xem</a>
-                  <button onClick={() => guard(async () => { setNotice(''); setEditing(await api.page(p.slug)); })}>Sửa</button>
-                  {p.slug !== 'gioi-thieu' && <button onClick={() => remove(p)}>Xóa</button>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-const SETTING_FIELDS = [
-  ['name', 'Tên khoa'],
-  ['university', 'Tên trường'],
-  ['tagline', 'Dòng mô tả ngắn (trang chủ và chân trang)'],
-  ['address', 'Địa chỉ'],
-  ['phone', 'Điện thoại'],
-  ['email', 'Email'],
-  ['facebook', 'Liên kết Facebook (bắt đầu bằng https://)'],
-  ['website', 'Website của trường (bắt đầu bằng https://)']
-];
-
-const IMAGE_FIELDS = [
-  ['logo', 'Logo (đầu trang, trang chủ, biểu tượng tab)'],
-  ['heroImage', 'Ảnh nền khối đầu trang chủ (để trống = nền xanh)']
-];
-
-// paste an image address, or upload one from this computer
-function ImageField({ label, value, onChange, onError }) {
-  const upload = async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      onChange((await api.upload(file)).url);
-      onError('');
-    } catch (err) {
-      onError(err.message);
-    }
-  };
-  return (
-    <div className="field">
-      <span className="lbl">{label}</span>
-      <input aria-label={label} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder="https://… hoặc chọn ảnh từ máy" />
-      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label={`Tải ảnh lên: ${label}`} onChange={upload} />
-      {value && <img className="preview" src={value} alt="" />}
-    </div>
-  );
-}
-
-function SettingsForm({ site, reload }) {
-  const [f, setF] = useState(site);
-  const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
-  const [params] = useSearchParams();
-  const navigate = useNavigate();
-  useEffect(() => setF(site), [site]); // the site loads after the first render when the admin is opened directly
-  const submit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setMsg('');
-    try {
-      await api.saveSettings(f);
-      await reload();
-      if (params.get('ve')) return navigate(safeReturn(params.get('ve'))); // opened from the public site: show the change there
-      setMsg('Đã lưu.');
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-  return (
-    <form className="box form" onSubmit={submit}>
-      <h2>Thông tin khoa</h2>
-      <p className="hint">Hiện ở đầu trang, trang chủ, mục Liên hệ và chân trang.</p>
-      {SETTING_FIELDS.map(([key, label]) => (
-        <label key={key}>{label}
-          <input value={f[key] || ''} onChange={(e) => setF({ ...f, [key]: e.target.value })} required={key === 'name'} />
-        </label>
-      ))}
-      {IMAGE_FIELDS.map(([key, label]) => (
-        <ImageField key={key} label={label} value={f[key]} onChange={(v) => setF((s) => ({ ...s, [key]: v }))} onError={setError} />
-      ))}
-      {error && <p className="err" role="alert">{error}</p>}
-      <div className="row"><button className="btn">Lưu</button><span className="ok-text" role="status">{msg}</span></div>
-    </form>
-  );
-}
-
-function Categories({ cats, reload, guard }) {
-  const [name, setName] = useState('');
-  const [parent, setParent] = useState('');
-  const add = (e) => {
-    e.preventDefault();
-    guard(async () => {
-      await api.addCategory(name.trim(), parent);
-      setName('');
-      await reload();
-    });
-  };
-  const rename = (c) => {
-    const next = window.prompt('Tên mới của chuyên mục', c.name);
-    if (next?.trim()) guard(async () => { await api.updateCategory(c.slug, { name: next.trim() }); await reload(); });
-  };
-  const remove = (c) => {
-    if (window.confirm(`Xóa chuyên mục "${c.name}"?`)) guard(async () => { await api.deleteCategory(c.slug); await reload(); });
-  };
-  const describe = (c) => {
-    const next = window.prompt(`Mô tả ngắn của mục "${c.name}" (hiện dưới tên mục; để trống để bỏ):`, c.description || '');
-    if (next !== null) guard(async () => { await api.updateCategory(c.slug, { name: c.name, description: next.trim() }); await reload(); });
-  };
-  // ↑↓ within the same level: top-level sections among themselves, sub-sections within their section
-  const siblingsOf = (c) => (c.parent ? childrenOf(cats, c.parent) : topLevel(cats));
-  const shift = (c, dir) => {
-    const group = siblingsOf(c).map((x) => x.slug);
-    const next = move(group, group.indexOf(c.slug), dir);
-    if (next) guard(async () => { await api.reorderCategories(next); await reload(); });
-  };
-  return (
-    <div className="box">
-      <h2>Chuyên mục</h2>
-      <form className="row wrap" onSubmit={add}>
-        <input className="grow" aria-label="Tên chuyên mục mới" placeholder="Tên chuyên mục mới" value={name} onChange={(e) => setName(e.target.value)} required />
-        <select aria-label="Thuộc mục lớn" value={parent} onChange={(e) => setParent(e.target.value)}>
-          <option value="">Đây là mục lớn</option>
-          {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>Mục con của: {c.name}</option>)}
+      <div className="finder">
+        <input type="search" className="big-input" placeholder="Tìm tin theo tiêu đề…" aria-label="Tìm tin theo tiêu đề" value={q} onChange={(e) => { setQ(e.target.value); setShown(PAGE_SIZE); }} />
+        <select className="big-select" aria-label="Lọc theo mục" value={cat} onChange={(e) => { setCat(e.target.value); setShown(PAGE_SIZE); }}>
+          <option value="">Tất cả các mục</option>
+          {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
         </select>
-        <button className="btn">Thêm</button>
-      </form>
-      <div className="table-wrap">
-        <table className="admin-table">
-          <thead><tr><th>Mục lớn</th><th>Mục con</th><th /></tr></thead>
-          <tbody>
-            {topLevel(cats).flatMap((c) => [c, ...childrenOf(cats, c.slug)]).map((c) => (
-              <tr key={c.slug}>
-                <td>{!c.parent && <><strong>{c.name}</strong>{c.description && <div className="hint">{c.description}</div>}</>}</td>
-                <td>{c.parent && c.name}</td>
-                <td className="actions">
-                  <button aria-label={`Đưa ${c.name} lên`} disabled={siblingsOf(c)[0]?.slug === c.slug} onClick={() => shift(c, -1)}>↑</button>
-                  <button aria-label={`Đưa ${c.name} xuống`} disabled={siblingsOf(c).at(-1)?.slug === c.slug} onClick={() => shift(c, 1)}>↓</button>
-                  <button onClick={() => rename(c)}>Đổi tên</button>
-                  {!c.parent && <button onClick={() => describe(c)}>Mô tả</button>}
-                  <button onClick={() => remove(c)}>Xóa</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
-    </div>
+      <p className="hint" role="status">{list.length} tin</p>
+      {list.length === 0 && <p className="empty">Không tìm thấy tin nào.</p>}
+      <ul className="item-list">
+        {list.slice(0, shown).map((p) => (
+          <li key={p.id} className="item-row">
+            <Cover post={p} />
+            <div className="item-main">
+              <strong>{p.title}</strong>
+              <span className="item-meta">
+                {fmtDate(p.createdAt)} · {nameOf(p.category)}
+                {p.isFeatured && <span className="tag">Tin nổi bật</span>}
+                {p.pinnedNow && <span className="tag">Đang ghim</span>}
+              </span>
+            </div>
+            <div className="item-actions">
+              <Link className="btn" to={`/quan-tri/tin/${p.slug}`}>Sửa</Link>
+              <a className="btn ghost" href={`/bai-viet/${p.slug}`} target="_blank" rel="noreferrer">Xem</a>
+              <button type="button" className="btn ghost danger" onClick={() => remove(p)}>Xóa</button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {list.length > shown && <button type="button" className="btn ghost wide" onClick={() => setShown(shown + PAGE_SIZE)}>Xem thêm tin cũ hơn</button>}
+    </>
   );
 }
 
-// Opened from a ✎ on the public site (/quan-tri/bai/<slug>, /bai-moi?muc=…): the editor alone,
-// and back to the page the admin came from (?ve=…) after saving or cancelling.
-function useBack(fallback) {
-  const [params] = useSearchParams();
-  const navigate = useNavigate();
-  const ve = params.get('ve');
-  return { params, back: (to) => navigate(ve ? safeReturn(ve) : to || fallback) };
-}
-
-function EditPostRoute({ cats, after }) {
+function PostEditor({ cats, after, setNotice }) {
   const { slug } = useParams();
-  const { params, back } = useBack('/quan-tri/quan-ly');
+  const [params] = useSearchParams();
+  const goBack = useGoBack();
+  const navigate = useNavigate();
   const [post, setPost] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -367,12 +167,120 @@ function EditPostRoute({ cats, after }) {
   }, [slug]);
   if (error) return <p className="empty">{error}</p>;
   if (!post) return <p className="empty">Đang tải…</p>;
-  return <PostForm key={post.id || 'new'} cats={cats} initial={post} onCancel={() => back()} onSaved={(saved) => { after(); back(`/quan-tri/bai-viet/${saved.slug}`); }} />;
+  return (
+    <PostForm
+      key={post.id || 'new'}
+      cats={cats}
+      initial={post}
+      onCancel={() => goBack('/quan-tri/tin')}
+      onSaved={(saved) => {
+        after();
+        setNotice({ text: post.id ? 'Đã lưu thay đổi.' : 'Đã đăng! Tin đã hiện trên trang web.', href: `/bai-viet/${saved.slug}`, at: '/quan-tri/tin' });
+        navigate('/quan-tri/tin');
+      }}
+    />
+  );
 }
 
-function EditPageRoute({ cats, after }) {
+// ---- home page: big picture, featured and pinned
+
+const MAX_FEATURED = 5;
+
+function HomeScreen({ site, reload, posts, loadPosts }) {
+  const act = useAction();
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState('');
+  if (!posts) return <p className="empty">Đang tải…</p>;
+
+  // tick boxes for the newest 40 posts, with every post already featured or pinned on top so it can be unticked
+  const marked = posts.filter((p) => p.isFeatured || p.pinned);
+  const list = [...marked, ...posts.filter((p) => !p.isFeatured && !p.pinned)].slice(0, Math.max(40, marked.length));
+  const featured = posts.filter((p) => p.isFeatured).length;
+
+  const saveHero = (url) => act(async () => { await api.saveSettings({ ...site, heroImage: url }); await reload(); });
+  const toggle = async (p, key) => {
+    setBusy(p.id + key);
+    await act(async () => { await api.savePost({ ...p, [key]: !p[key] }); await loadPosts(); });
+    setBusy('');
+  };
+
+  return (
+    <>
+      <div className="screen-head"><h1>Trang chủ</h1><a className="btn ghost" href="/" target="_blank" rel="noreferrer"><ExternalLink size={16} aria-hidden="true" /> Xem trang chủ</a></div>
+
+      <section className="panel">
+        <h2>Ảnh lớn đầu trang chủ</h2>
+        <p className="hint">Nên chọn ảnh ngang, rõ người, khổ rộng. Ảnh được làm tối bên trái để chữ dễ đọc.</p>
+        <CoverField url={site.heroImage} onChange={saveHero} onError={setError} addText="+ Chọn ảnh lớn cho trang chủ" changeText="Đổi ảnh" alt="Ảnh lớn đầu trang chủ" />
+        {error && <p className="err" role="alert">{error}</p>}
+      </section>
+
+      <section className="panel">
+        <h2>Tin hiện ở trang chủ</h2>
+        <p className="hint">
+          Tích ô <b>“Tin nổi bật”</b> để tin hiện ảnh lớn ở khối trình chiếu (tối đa {MAX_FEATURED} tin, đang chọn {featured}).
+          Tích ô <b>“Ghim”</b> để tin hiện ở mục “Thông báo quan trọng”.
+        </p>
+        {featured > MAX_FEATURED && <p className="warn">Đang chọn {featured} tin nổi bật, nhưng trang chủ chỉ hiện {MAX_FEATURED} tin mới nhất. Hãy bỏ tích bớt các tin cũ.</p>}
+        <ul className="item-list">
+          {list.map((p) => (
+            <li key={p.id} className="item-row">
+              <Cover post={p} />
+              <div className="item-main">
+                <strong>{p.title}</strong>
+                <span className="item-meta">{fmtDate(p.createdAt)}</span>
+              </div>
+              <div className="item-actions">
+                <label className="check big"><input type="checkbox" checked={!!p.isFeatured} disabled={busy !== '' || (!p.isFeatured && featured >= MAX_FEATURED)} onChange={() => toggle(p, 'isFeatured')} /> Tin nổi bật</label>
+                <label className="check big"><input type="checkbox" checked={!!p.pinned} disabled={busy !== ''} onChange={() => toggle(p, 'pinned')} /> Ghim</label>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
+  );
+}
+
+// ---- fixed pages
+
+function PagesScreen({ pages, cats, reload }) {
+  const act = useAction();
+  const nameOf = (s) => cats.find((c) => c.slug === s)?.name;
+  const remove = (p) => {
+    if (window.confirm(`Xóa trang “${p.title}”?\n\nTrang sẽ biến mất khỏi trang web và không lấy lại được.`)) act(async () => { await api.deletePage(p.slug); await reload(); });
+  };
+  return (
+    <>
+      <div className="screen-head">
+        <h1>Các trang thông tin</h1>
+        <Link className="btn big" to="/quan-tri/trang/moi">+ Thêm trang mới</Link>
+      </div>
+      <p className="hint">Các trang ít thay đổi như giới thiệu, lịch sử, ngành đào tạo, tuyển sinh, biểu mẫu.</p>
+      <ul className="item-list">
+        {pages.map((p) => (
+          <li key={p.slug} className="item-row no-pic">
+            <div className="item-main">
+              <strong>{p.title}</strong>
+              <span className="item-meta">{p.group ? `Trong menu “${nameOf(p.group)}”` : 'Không có trong menu'}</span>
+            </div>
+            <div className="item-actions">
+              <Link className="btn" to={`/quan-tri/trang/${p.slug}`}>Sửa</Link>
+              <a className="btn ghost" href={`/trang/${p.slug}`} target="_blank" rel="noreferrer">Xem</a>
+              {p.slug !== 'gioi-thieu' && <button type="button" className="btn ghost danger" onClick={() => remove(p)}>Xóa</button>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function PageEditor({ cats, after, setNotice }) {
   const { slug } = useParams();
-  const { params, back } = useBack('/quan-tri/quan-ly/trang');
+  const [params] = useSearchParams();
+  const goBack = useGoBack();
+  const navigate = useNavigate();
   const [page, setPage] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -381,68 +289,214 @@ function EditPageRoute({ cats, after }) {
   }, [slug]);
   if (error) return <p className="empty">{error}</p>;
   if (!page) return <p className="empty">Đang tải…</p>;
-  return <PageForm key={page.slug || 'new'} cats={cats} initial={page} onCancel={() => back()} onSaved={(saved) => { after(); back(`/quan-tri/trang/${saved.slug}`); }} />;
+  return (
+    <PageForm
+      key={page.slug || 'new'}
+      cats={cats}
+      initial={page}
+      onCancel={() => goBack('/quan-tri/trang')}
+      onSaved={(saved) => {
+        after();
+        setNotice({ text: 'Đã lưu trang.', href: `/trang/${saved.slug}`, at: '/quan-tri/trang' });
+        navigate('/quan-tri/trang');
+      }}
+    />
+  );
 }
 
-// "← Quay lại trang đang xem" on admin screens opened from the public site
-function BackToSite() {
-  const [params] = useSearchParams();
-  const ve = params.get('ve');
-  return ve ? <p className="back-to-site"><Link to={safeReturn(ve)}>← Quay lại trang đang xem</Link></p> : null;
+// ---- contact details and logo
+
+const SETTING_FIELDS = [
+  ['name', 'Tên khoa'],
+  ['university', 'Tên trường'],
+  ['tagline', 'Dòng giới thiệu ngắn (hiện dưới tên khoa ở trang chủ)'],
+  ['address', 'Địa chỉ'],
+  ['phone', 'Số điện thoại'],
+  ['email', 'Email'],
+  ['facebook', 'Địa chỉ trang Facebook (dán từ trình duyệt, bắt đầu bằng https://)'],
+  ['website', 'Địa chỉ website của trường (bắt đầu bằng https://)']
+];
+
+function SettingsScreen({ site, reload }) {
+  const [f, setF] = useState(site);
+  const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+  useEffect(() => setF(site), [site]); // the site loads after the first render when the admin is opened directly
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setMsg('');
+    try {
+      await api.saveSettings(f);
+      await reload();
+      setMsg('Đã lưu. Thông tin mới đã hiện trên trang web.');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  return (
+    <form className="simple-form" onSubmit={submit}>
+      <h1>Thông tin liên hệ & logo</h1>
+      <p className="hint">Hiện ở đầu trang, trang chủ, mục Liên hệ và cuối mỗi trang.</p>
+      <section className="step">
+        <h3>Logo</h3>
+        <CoverField url={f.logo} onChange={(v) => setF((s) => ({ ...s, logo: v }))} onError={setError} addText="+ Chọn logo" changeText="Đổi logo" alt="Logo" />
+      </section>
+      {SETTING_FIELDS.map(([key, label]) => (
+        <label key={key} className="big-label">{label}
+          <input className="big-input" value={f[key] || ''} onChange={(e) => setF({ ...f, [key]: e.target.value })} required={key === 'name'} />
+        </label>
+      ))}
+      <div className="form-bar">
+        {error && <p className="err" role="alert">{error}</p>}
+        {msg && <p className="ok" role="status">{msg}</p>}
+        <button className="btn big">Lưu thông tin</button>
+      </div>
+    </form>
+  );
 }
+
+// ---- advanced: menu sections and the order of fixed pages
+
+function Advanced({ cats, pages, reload }) {
+  const act = useAction();
+  const [name, setName] = useState('');
+  const [parent, setParent] = useState('');
+  const add = (e) => {
+    e.preventDefault();
+    act(async () => { await api.addCategory(name.trim(), parent); setName(''); await reload(); });
+  };
+  const rename = (c) => {
+    const next = window.prompt('Tên mới của mục', c.name);
+    if (next?.trim()) act(async () => { await api.updateCategory(c.slug, { name: next.trim() }); await reload(); });
+  };
+  const describe = (c) => {
+    const next = window.prompt(`Dòng mô tả ngắn của mục “${c.name}” (hiện dưới tên mục; để trống để bỏ):`, c.description || '');
+    if (next !== null) act(async () => { await api.updateCategory(c.slug, { name: c.name, description: next.trim() }); await reload(); });
+  };
+  const remove = (c) => {
+    if (window.confirm(`Xóa mục “${c.name}”?`)) act(async () => { await api.deleteCategory(c.slug); await reload(); });
+  };
+  const siblingsOf = (c) => (c.parent ? childrenOf(cats, c.parent) : topLevel(cats));
+  const shiftCat = (c, dir) => {
+    const group = siblingsOf(c).map((x) => x.slug);
+    const next = move(group, group.indexOf(c.slug), dir);
+    if (next) act(async () => { await api.reorderCategories(next); await reload(); });
+  };
+  const shiftPage = (p, dir) => {
+    const group = pages.filter((x) => x.group === p.group).map((x) => x.slug);
+    const next = move(group, group.indexOf(p.slug), dir);
+    if (next) act(async () => { await api.reorderPages(next); await reload(); });
+  };
+  const first = (list, item) => list[0]?.slug === item.slug;
+  const last = (list, item) => list.at(-1)?.slug === item.slug;
+
+  return (
+    <>
+      <div className="screen-head"><h1>Cài đặt nâng cao</h1></div>
+
+      <section className="panel">
+        <h2>Menu và chuyên mục</h2>
+        <p className="hint">Mục lớn là các mục trên thanh menu; mục con nằm trong mục lớn. “Lên”, “Xuống” đổi thứ tự trên menu.</p>
+        <form className="row wrap" onSubmit={add}>
+          <input className="big-input grow" aria-label="Tên mục mới" placeholder="Tên mục mới" value={name} onChange={(e) => setName(e.target.value)} required />
+          <select className="big-select" aria-label="Đặt ở đâu" value={parent} onChange={(e) => setParent(e.target.value)}>
+            <option value="">Là mục lớn trên menu</option>
+            {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>Là mục con của “{c.name}”</option>)}
+          </select>
+          <button className="btn big">Thêm mục</button>
+        </form>
+        <ul className="item-list">
+          {topLevel(cats).flatMap((c) => [c, ...childrenOf(cats, c.slug)]).map((c) => (
+            <li key={c.slug} className={`item-row no-pic${c.parent ? ' child' : ''}`}>
+              <div className="item-main">
+                <strong>{c.parent ? `› ${c.name}` : c.name}</strong>
+                {c.description && <span className="item-meta">{c.description}</span>}
+              </div>
+              <div className="item-actions">
+                <button type="button" className="btn ghost" disabled={first(siblingsOf(c), c)} onClick={() => shiftCat(c, -1)}>Lên</button>
+                <button type="button" className="btn ghost" disabled={last(siblingsOf(c), c)} onClick={() => shiftCat(c, 1)}>Xuống</button>
+                <button type="button" className="btn ghost" onClick={() => rename(c)}>Đổi tên</button>
+                {!c.parent && <button type="button" className="btn ghost" onClick={() => describe(c)}>Mô tả</button>}
+                <button type="button" className="btn ghost danger" onClick={() => remove(c)}>Xóa</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="panel">
+        <h2>Thứ tự các trang trong menu</h2>
+        {topLevel(cats).map((c) => {
+          const group = pages.filter((p) => p.group === c.slug);
+          if (group.length < 2) return null;
+          return (
+            <div key={c.slug} className="order-group">
+              <h3>Menu “{c.name}”</h3>
+              <ul className="item-list">
+                {group.map((p) => (
+                  <li key={p.slug} className="item-row no-pic">
+                    <div className="item-main"><strong>{p.title}</strong></div>
+                    <div className="item-actions">
+                      <button type="button" className="btn ghost" disabled={first(group, p)} onClick={() => shiftPage(p, -1)}>Lên</button>
+                      <button type="button" className="btn ghost" disabled={last(group, p)} onClick={() => shiftPage(p, 1)}>Xuống</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </section>
+    </>
+  );
+}
+
+// ---- the shell
 
 export default function Admin() {
-  // Layout has already confirmed the session with the server before this renders (see its access check)
   const { cats, pages, site, reload } = useOutletContext();
-  const { signOut: logout } = useAdmin();
+  const { signOut } = useAdmin();
+  const { pathname } = useLocation();
   const [posts, setPosts] = useState(null);
+  const [notice, setNotice] = useState(null); // { text, href, at }: shown once, on the screen named by `at`
 
   const loadPosts = useCallback(() => api.posts().then(setPosts), []);
   useEffect(() => { loadPosts(); }, [loadPosts]);
   const after = () => { loadPosts(); reload(); };
-  // runs an admin action; an expired token sends the admin back to the login form
-  const guard = async (fn) => {
-    try {
-      await fn();
-    } catch (err) {
-      if (err.message.includes('đăng nhập')) logout();
-      else alert(err.message);
-    }
-  };
-  const count = (slug) => posts?.filter((p) => treeSlugs(cats, slug).includes(p.category)).length;
-  const postsProps = { posts, cats, reload: loadPosts, guard };
+  const atHome = pathname === '/quan-tri' || pathname === '/quan-tri/';
+  const shared = { cats, pages, site, reload, posts, loadPosts, after, setNotice };
 
   return (
-    <div className="admin">
-      <nav className="admin-nav" aria-label="Quản trị">
-        <p className="admin-nav-h">Bài viết theo mục</p>
-        <NavLink to="/quan-tri/quan-ly" end>Tất cả bài viết <span>{posts?.length}</span></NavLink>
-        {topLevel(cats).map((c) => (
-          <NavLink key={c.slug} to={`/quan-tri/quan-ly/muc/${c.slug}`}>{c.name} <span>{count(c.slug)}</span></NavLink>
-        ))}
-        <p className="admin-nav-h">Nội dung khác</p>
-        <NavLink to="/quan-tri/quan-ly/trang">Trang cố định</NavLink>
-        <NavLink to="/quan-tri/quan-ly/chuyen-muc">Chuyên mục</NavLink>
-        <NavLink to="/quan-tri/quan-ly/thong-tin">Thông tin khoa</NavLink>
-        <NavLink to="/quan-tri" end><ExternalLink size={16} /> Trang chủ (chế độ sửa)</NavLink>
-        <a className="admin-site" href="/" target="_blank" rel="noreferrer"><ExternalLink size={16} /> Xem như khách</a>
-        <button className="linkbtn logout" onClick={logout}>Đăng xuất</button>
-      </nav>
-
-      <div className="admin-main">
-        <Routes>
-          <Route path="quan-ly" element={<PostsAdmin {...postsProps} />} />
-          <Route path="quan-ly/muc/:slug" element={<PostsAdmin {...postsProps} />} />
-          <Route path="quan-ly/trang" element={<PagesAdmin cats={cats} pages={pages} reload={reload} guard={guard} />} />
-          <Route path="bai/:slug" element={<EditPostRoute cats={cats} after={after} />} />
-          <Route path="bai-moi" element={<EditPostRoute cats={cats} after={after} />} />
-          <Route path="sua-trang/:slug" element={<EditPageRoute cats={cats} after={after} />} />
-          <Route path="trang-moi" element={<EditPageRoute cats={cats} after={after} />} />
-          <Route path="quan-ly/chuyen-muc" element={<><BackToSite /><Categories cats={cats} pages={pages} reload={reload} guard={guard} /></>} />
-          <Route path="quan-ly/thong-tin" element={<><BackToSite /><SettingsForm site={site} reload={reload} /></>} />
-          <Route path="*" element={<p className="empty">Không có trang quản trị này.</p>} />
-        </Routes>
+    <div className="desk">
+      <div className="desk-top">
+        {atHome ? <span className="desk-title">Khu quản trị</span> : <Link className="btn ghost" to="/quan-tri"><ArrowLeft size={18} aria-hidden="true" /> Về bảng điều khiển</Link>}
+        <span className="desk-actions">
+          <a className="btn ghost" href="/" target="_blank" rel="noreferrer"><ExternalLink size={16} aria-hidden="true" /> Xem trang web</a>
+          <button type="button" className="btn ghost" onClick={signOut}><LogOut size={16} aria-hidden="true" /> Đăng xuất</button>
+        </span>
       </div>
+
+      {notice && notice.at === pathname && (
+        <p className="ok big-notice" role="status">
+          {notice.text} {notice.href && <a href={notice.href} target="_blank" rel="noreferrer">Xem trên trang web →</a>}
+          <button type="button" className="linkbtn" onClick={() => setNotice(null)}>Đóng</button>
+        </p>
+      )}
+
+      <Routes>
+        <Route index element={<Dashboard {...shared} />} />
+        <Route path="tin" element={<PostsScreen {...shared} />} />
+        <Route path="tin/moi" element={<PostEditor {...shared} />} />
+        <Route path="tin/:slug" element={<PostEditor {...shared} />} />
+        <Route path="trang-chu" element={<HomeScreen {...shared} />} />
+        <Route path="trang" element={<PagesScreen {...shared} />} />
+        <Route path="trang/moi" element={<PageEditor {...shared} />} />
+        <Route path="trang/:slug" element={<PageEditor {...shared} />} />
+        <Route path="lien-he" element={<SettingsScreen {...shared} />} />
+        <Route path="nang-cao" element={<Advanced {...shared} />} />
+        <Route path="*" element={<p className="empty">Không có trang này. <Link to="/quan-tri">Về bảng điều khiển</Link></p>} />
+      </Routes>
     </div>
   );
 }
