@@ -5,12 +5,26 @@ const API = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 export const getToken = () => localStorage.getItem(TOKEN);
 export const setToken = (t) => (t ? localStorage.setItem(TOKEN, t) : localStorage.removeItem(TOKEN));
 
+// The free server sleeps when idle and restarts on each deploy; for a minute it refuses connections.
+// Reads wait it out (about 15s in all); writes are never repeated, since the first one may have arrived.
+export const RETRY_DELAYS = [1000, 2000, 4000, 8000];
+const OFFLINE = 'Không kết nối được máy chủ. Máy chủ có thể đang khởi động, vui lòng tải lại trang sau ít phút.';
+
 async function call(path, { method = 'GET', body, raw, type } = {}) {
   const headers = {};
   if (getToken()) headers.Authorization = `Bearer ${getToken()}`;
   if (body && !raw) headers['Content-Type'] = 'application/json';
   if (raw) headers['Content-Type'] = type;
-  const res = await fetch(`${API}/api${path}`, { method, headers, body: raw || (body && JSON.stringify(body)) });
+  let res;
+  for (let attempt = 0; !res; attempt++) {
+    try {
+      res = await fetch(`${API}/api${path}`, { method, headers, body: raw || (body && JSON.stringify(body)) });
+    } catch {
+      // fetch only throws when no answer came back at all (offline, server down)
+      if (method !== 'GET' || attempt >= RETRY_DELAYS.length) throw new Error(OFFLINE);
+      await new Promise((ok) => setTimeout(ok, RETRY_DELAYS[attempt]));
+    }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || 'Có lỗi xảy ra');
   return data;
