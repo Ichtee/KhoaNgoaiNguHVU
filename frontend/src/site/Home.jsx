@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
-import { api } from '../api';
-import { DateLink } from './parts';
+import { api, fmtDate } from '../api';
+import { Cover, DateLink } from './parts';
 import { topLevel, treeSlugs } from './tree';
 import Intro from './Intro';
 import Slides from './Slides';
@@ -32,9 +32,10 @@ export default function Home() {
   const lead = slides[0];
   const latest = normal.filter((p) => !slides.includes(p)).slice(0, 6);
 
-  // one column per top-level category that has posts (its children's posts count)
+  // one column per top-level category (its children's posts count), skipping what the slides and "Tin mới" already show
+  const shown = new Set([...slides, ...latest, ...pinned].map((p) => p.id));
   const columns = topLevel(cats)
-    .map((c) => ({ ...c, posts: posts.filter((p) => treeSlugs(cats, c.slug).includes(p.category)).slice(0, 4) }))
+    .map((c) => ({ ...c, posts: normal.filter((p) => !shown.has(p.id) && treeSlugs(cats, c.slug).includes(p.category)).slice(0, 4) }))
     .filter((c) => c.posts.length > 0);
 
   return (
@@ -75,7 +76,14 @@ export default function Home() {
           {columns.map((c) => (
             <div key={c.slug}>
               <h2 className="label"><Link to={`/muc/${c.slug}`}>{c.name}</Link></h2>
-              <ul className="rows">{c.posts.map((p) => <DateLink key={p.id} post={p} />)}</ul>
+              <Link to={`/bai-viet/${c.posts[0].slug}`} className="col-lead">
+                <Cover post={c.posts[0]} />
+                <span>
+                  <h3>{c.posts[0].title}</h3>
+                  <time className="date">{fmtDate(c.posts[0].createdAt)}</time>
+                </span>
+              </Link>
+              <ul className="rows">{c.posts.slice(1).map((p) => <DateLink key={p.id} post={p} />)}</ul>
               <Link className="more" to={`/muc/${c.slug}`}>Xem tất cả →</Link>
             </div>
           ))}

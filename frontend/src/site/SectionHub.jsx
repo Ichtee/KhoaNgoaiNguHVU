@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, BookOpen, ClipboardList, FileText, GraduationCap, History, Info, Mail, MapPin, Network, Phone, Target, Users
 } from 'lucide-react';
-import { api } from '../api';
 
 // an icon that fits the page title; anything unknown gets a plain document
 const ICONS = [
@@ -46,8 +45,6 @@ export function plain(md) {
   return out.map((s) => (/[.!?:…]$/.test(s) ? s : `${s}.`)).join(' ');
 }
 
-const clip = (s, n) => (s.length > n ? `${s.slice(0, n).replace(/\s+\S*$/, '')}…` : s);
-
 // Contact details from the site settings; shown where a section would otherwise end early.
 export function ContactCard({ site, title = 'Liên hệ khoa' }) {
   const rows = [
@@ -70,15 +67,6 @@ export function ContactCard({ site, title = 'Liên hệ khoa' }) {
 
 // The landing view of a section that holds fixed pages (Giới thiệu, Đào tạo…): a banner, one card per page, and contact details.
 export default function SectionHub({ cat, pages, site, showContact }) {
-  const [summaries, setSummaries] = useState({});
-
-  useEffect(() => {
-    let live = true;
-    Promise.all(pages.map((p) => api.page(p.slug).then((full) => [p.slug, clip(plain(full.content), 150)]).catch(() => [p.slug, ''])))
-      .then((pairs) => live && setSummaries(Object.fromEntries(pairs)));
-    return () => { live = false; };
-  }, [pages.map((p) => p.slug).join()]);
-
   return (
     <>
       <section className={site.heroImage ? 'banner photo' : 'banner'} style={site.heroImage ? { '--hero': `url(${JSON.stringify(site.heroImage)})` } : undefined}>
@@ -97,8 +85,7 @@ export default function SectionHub({ cat, pages, site, showContact }) {
               <Link to={`/trang/${p.slug}`} className="hub-card">
                 <span className="hub-icon"><Icon size={22} aria-hidden="true" /></span>
                 <h2>{p.title}</h2>
-                <p>{summaries[p.slug] ?? <span className="skeleton" aria-hidden="true" />}</p>
-                <span className="hub-more">Xem chi tiết <ArrowRight size={16} aria-hidden="true" /></span>
+                <span className="hub-more"><span className="hub-more-text">Xem chi tiết</span> <ArrowRight size={16} aria-hidden="true" /></span>
               </Link>
             </li>
           );
