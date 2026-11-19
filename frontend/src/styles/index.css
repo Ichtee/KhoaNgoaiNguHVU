@@ -156,6 +156,26 @@ nav { margin-left: auto; }
 .cat .pin { margin-left: 8px; }
 .notice { margin-top: 36px; padding: 18px 20px; border-left: 4px solid var(--navy); background: var(--soft); }
 .notice .rows li:last-child { border-bottom: 0; }
+/* admin: pictures of a post as a grid */
+.imgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin: 6px 0 10px; padding: 0; list-style: none; }
+.imgs li { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.imgs img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: calc(var(--radius) - 2px); background: var(--soft); }
+.imgs .badge { position: absolute; top: 12px; left: 12px; padding: 2px 8px; border-radius: 999px; background: var(--navy); color: #fff; font-size: 12px; font-weight: 600; }
+.imgs .tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.imgs .tools button { min-height: 36px; min-width: 36px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; font: inherit; font-size: 13px; }
+.imgs .tools button:hover:not(:disabled) { border-color: var(--navy); }
+.imgs .tools button:disabled { opacity: .4; cursor: default; }
+.imgs .tools .danger { margin-left: auto; color: #b42318; }
+.addimg { position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 8px 16px; border: 1px dashed #8a93a8; border-radius: var(--radius); font-weight: 500; cursor: pointer; }
+.addimg:hover, .addimg:focus-within { border-color: var(--navy); color: var(--navy); }
+.addimg input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.filters { margin: 0 0 32px; }
+.chips .n { margin-left: 4px; font-size: 12px; opacity: .7; }
+.filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.filter-row input, .filter-row select { min-height: 44px; padding: 8px 12px; border: 1px solid #8a93a8; border-radius: var(--radius); background: #fff; font: inherit; font-size: 14px; }
+.filter-row input[type=search] { flex: 1 1 220px; min-width: 0; }
+.filter-row .range { display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-row .range label { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .subnav { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 32px; }
 .subnav a { display: block; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; font-weight: 500; }
 .subnav a:hover { border-color: var(--navy); color: var(--navy); }

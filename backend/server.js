@@ -63,7 +63,7 @@ const withPin = (p) => ({ ...p, pinnedNow: isPinned(p) });
 // only files we stored ourselves, so a crafted "url" can never become a javascript: link
 const cleanFiles = (files) =>
   (Array.isArray(files) ? files : [])
-    .filter((f) => f && typeof f.url === 'string' && /^\/uploads\/[\w.-]+$/.test(f.url))
+    .filter((f) => f && typeof f.url === 'string' && ownFile(f.url))
     .map((f) => ({ name: String(f.name || 'Tệp đính kèm').slice(0, 200), url: f.url }));
 
 const pickPost = (b) => ({
@@ -266,7 +266,41 @@ app.delete('/api/posts/:id', admin, wrap(async (req, res) => {
 }));
 
 // ---- upload: raw body, no extra dependency. Images for covers, documents for attachments.
-// ponytail: files stay on this server's disk; on a host with a temporary disk move them to object storage (S3, Cloudinary).
+// With the CLOUDINARY_* variables set, files go to Cloudinary (they survive restarts); without them, to this server's disk (local development).
+const CLOUD = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET
+  ? { name: process.env.CLOUDINARY_CLOUD_NAME, key: process.env.CLOUDINARY_API_KEY, secret: process.env.CLOUDINARY_API_SECRET }
+  : null;
+if (!CLOUD) console.warn('Chưa cấu hình Cloudinary: tệp tải lên được lưu trên ổ đĩa máy chủ và sẽ mất khi máy chủ khởi động lại.');
+const CLOUD_FOLDER = 'khoangoaingu';
+
+// Cloudinary's signature: sha1 of the sorted "key=value" pairs followed by the API secret
+const cloudSignature = (params, secret) =>
+  crypto.createHash('sha1').update(Object.keys(params).sort().map((k) => `${k}=${params[k]}`).join('&') + secret).digest('hex');
+
+// A signed upload through Cloudinary's REST API; the SDK is not needed for this one call.
+// Images come back with an automatic format/quality and a 1600px width limit, so a 5MB phone photo is served small.
+async function putCloudinary(body, type, publicId, now = Date.now()) {
+  const kind = type.startsWith('image/') ? 'image' : 'raw'; // documents are "raw": stored and served as they are
+  const params = { folder: CLOUD_FOLDER, public_id: publicId, timestamp: Math.floor(now / 1000) };
+  const form = new FormData();
+  for (const [k, v] of Object.entries(params)) form.append(k, String(v));
+  form.append('api_key', CLOUD.key);
+  form.append('signature', cloudSignature(params, CLOUD.secret));
+  form.append('file', new Blob([body], { type }), publicId);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD.name}/${kind}/upload`, { method: 'POST', body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.secure_url) throw new Error(`Cloudinary từ chối tệp (${res.status}): ${data.error?.message || ''}`);
+  return kind === 'image' ? data.secure_url.replace('/image/upload/', '/image/upload/f_auto,q_auto,c_limit,w_1600/') : data.secure_url;
+}
+
+// a readable, URL-safe name from the original file name, so a downloaded form keeps a sensible name
+const fileBase = (name) => slugify(String(name || '').replace(/\.[^.]*$/, '')).slice(0, 60);
+
+// a file we stored ourselves: on this server's disk, or in our Cloudinary account
+const ownFile = (url) =>
+  /^\/uploads\/[\w.-]+$/.test(url) ||
+  Boolean(CLOUD && url.startsWith(`https://res.cloudinary.com/${CLOUD.name}/`) && /^[\w./,-]+$/.test(url.slice(`https://res.cloudinary.com/${CLOUD.name}/`.length)));
+
 const EXT = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
@@ -278,15 +312,21 @@ const EXT = {
   'application/vnd.ms-excel': '.xls',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx'
 };
-app.post('/api/upload', admin, express.raw({ type: Object.keys(EXT), limit: '15mb' }), (req, res) => {
-  const ext = EXT[req.headers['content-type']];
+app.post('/api/upload', admin, express.raw({ type: Object.keys(EXT), limit: '15mb' }), wrap(async (req, res) => {
+  const type = req.headers['content-type'];
+  const ext = EXT[type];
   if (!ext || !Buffer.isBuffer(req.body) || !req.body.length) {
     return res.status(400).json({ message: 'Chỉ nhận ảnh (JPG, PNG, WEBP, GIF) hoặc tệp PDF, Word, Excel, tối đa 15MB' });
   }
-  const name = crypto.randomUUID() + ext;
-  fs.writeFileSync(path.join(UPLOADS, name), req.body);
-  res.json({ url: `/uploads/${name}` });
-});
+  if (!CLOUD) {
+    const name = crypto.randomUUID() + ext;
+    fs.writeFileSync(path.join(UPLOADS, name), req.body);
+    return res.json({ url: `/uploads/${name}` });
+  }
+  // "don-xin-nghi-hoc-1a2b3c": readable and unique; raw files need their extension in the id, images get one from Cloudinary
+  const id = `${fileBase(req.query.name) || 'tep'}-${crypto.randomBytes(3).toString('hex')}`;
+  res.json({ url: await putCloudinary(req.body, type, type.startsWith('image/') ? id : id + ext) });
+}));
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {

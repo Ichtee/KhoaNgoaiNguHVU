@@ -40,7 +40,7 @@ export const api = {
   page: (slug) => call(`/pages/${slug}`),
   savePage: (page) => save('/pages', 'slug', page),
   deletePage: (slug) => call(`/pages/${slug}`, { method: 'DELETE' }),
-  upload: (file) => call('/upload', { method: 'POST', raw: file, type: file.type })
+  upload: (file) => call(`/upload?${qs({ name: file.name })}`, { method: 'POST', raw: file, type: file.type })
 };
 
 export const fmtDate = (iso) => new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });

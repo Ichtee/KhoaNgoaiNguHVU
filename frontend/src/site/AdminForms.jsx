@@ -52,6 +52,71 @@ function FilesField({ files, onChange, onError }) {
   );
 }
 
+// Pictures live in the text as ![alt](url), optionally followed by an *italic caption* line.
+// The grid below edits those in place, so the text stays the single source of truth.
+const IMG = /!\[([^\]]*)\]\(([^)\s]+)\)(\n\*[^*\n]+\*)?/g;
+export const imagesIn = (text) => [...text.matchAll(IMG)].map((m) => ({ url: m[2], whole: m[0], at: m.index }));
+const tidy = (text) => text.replace(/## Hình ảnh\s*(?=\*Nguồn|##|$)/, '').replace(/\n{3,}/g, '\n\n').trim();
+export function removeImage(text, k) {
+  const im = imagesIn(text)[k];
+  return tidy(text.slice(0, im.at) + text.slice(im.at + im.whole.length));
+}
+export function swapImages(text, a, b) {
+  const all = imagesIn(text);
+  const [x, y] = a < b ? [all[a], all[b]] : [all[b], all[a]];
+  return text.slice(0, x.at) + y.whole + text.slice(x.at + x.whole.length, y.at) + x.whole + text.slice(y.at + y.whole.length);
+}
+// new pictures go after the existing ones, above a closing "*Nguồn: …*" line if there is one
+export function addImages(text, urls, alt) {
+  const block = urls.map((u) => `![${alt.replace(/[[\]]/g, '')}](${u})`).join('\n\n');
+  const source = /\n*\*Nguồn:[^\n]*\*\s*$/.exec(text);
+  return source ? `${text.slice(0, source.index)}\n\n${block}\n\n${text.slice(source.index).trim()}` : `${text.trim()}\n\n${block}`.trim();
+}
+
+function ImagesField({ content, editContent, cover, onCover, alt, onError }) {
+  const [busy, setBusy] = useState(false);
+  const imgs = imagesIn(content);
+  const add = async (e) => {
+    const picked = [...e.target.files];
+    e.target.value = '';
+    if (!picked.length) return;
+    setBusy(true);
+    const urls = [];
+    try {
+      for (const file of picked) urls.push((await api.upload(file)).url);
+      onError('');
+    } catch (err) {
+      onError(err.message);
+    }
+    if (urls.length) editContent((c) => addImages(c, urls, alt)); // keep the ones that uploaded even if a later one failed
+    setBusy(false);
+  };
+  return (
+    <div className="field">
+      <span className="lbl">Ảnh trong bài ({imgs.length})</span>
+      {imgs.length > 0 && (
+        <ul className="imgs">
+          {imgs.map((im, k) => (
+            <li key={`${k}-${im.url}`}>
+              <img src={im.url} alt={`Ảnh ${k + 1}`} loading="lazy" />
+              {onCover && cover === im.url && <span className="badge">Ảnh bìa</span>}
+              <div className="tools">
+                <button type="button" aria-label={`Đưa ảnh ${k + 1} lên trước`} disabled={k === 0} onClick={() => editContent((c) => swapImages(c, k, k - 1))}>←</button>
+                <button type="button" aria-label={`Đưa ảnh ${k + 1} ra sau`} disabled={k === imgs.length - 1} onClick={() => editContent((c) => swapImages(c, k, k + 1))}>→</button>
+                {onCover && cover !== im.url && <button type="button" onClick={() => onCover(im.url)}>Làm ảnh bìa</button>}
+                <button type="button" className="danger" aria-label={`Gỡ ảnh ${k + 1}`} onClick={() => editContent((c) => removeImage(c, k))}>Gỡ</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <label className="addimg">{busy ? 'Đang tải ảnh lên…' : '+ Thêm ảnh (chọn được nhiều ảnh)'}
+        <input type="file" multiple accept={IMAGES} onChange={add} disabled={busy} />
+      </label>
+    </div>
+  );
+}
+
 // shared by the post and page forms: state, error, busy flag, the save call and a guarded cancel
 function useSave(initial, save, onSaved, onCancel) {
   const [start] = useState(initial);
@@ -166,13 +231,21 @@ export function PostForm({ cats, initial, onSaved, onCancel }) {
       )}
       <label>Tóm tắt<textarea rows="2" value={f.excerpt} onChange={set('excerpt')} /></label>
       <Editor label="Nội dung" value={f.content} onChange={(content) => setF({ ...f, content })} />
-      <label>Ảnh bìa (JPG, PNG, WEBP, GIF)<input type="file" accept={IMAGES} onChange={uploadCover} /></label>
+      <label>{f.coverImage ? 'Đổi ảnh bìa' : 'Ảnh bìa'} (JPG, PNG, WEBP, GIF)<input type="file" accept={IMAGES} onChange={uploadCover} /></label>
       {f.coverImage && (
         <div className="row">
           <img className="preview" src={f.coverImage} alt="Ảnh bìa đã chọn" />
           <button type="button" className="linkbtn" onClick={() => setF({ ...f, coverImage: '' })}>Gỡ ảnh bìa</button>
         </div>
       )}
+      <ImagesField
+        content={f.content}
+        editContent={(fn) => setF((s) => ({ ...s, content: fn(s.content) }))}
+        cover={f.coverImage}
+        onCover={(url) => setF((s) => ({ ...s, coverImage: url }))}
+        alt={f.title}
+        onError={setError}
+      />
       <FilesField files={f.files} onChange={(files) => setF((s) => ({ ...s, files }))} onError={setError} />
       <label className="check"><input type="checkbox" checked={f.isFeatured} onChange={set('isFeatured')} /> Bài nổi bật (hiện lớn ở trang chủ)</label>
       <label className="check"><input type="checkbox" checked={f.pinned} onChange={set('pinned')} /> Ghim vào “Thông báo quan trọng” ở trang chủ</label>
@@ -204,6 +277,7 @@ export function PageForm({ cats, initial, onSaved, onCancel }) {
         </select>
       </label>
       <Editor label="Nội dung" value={f.content} onChange={(content) => setF({ ...f, content })} />
+      <ImagesField content={f.content} editContent={(fn) => setF((s) => ({ ...s, content: fn(s.content) }))} alt={f.title} onError={setError} />
       <FilesField files={f.files} onChange={(files) => setF((s) => ({ ...s, files }))} onError={setError} />
       <Actions busy={busy} error={error} onCancel={cancel} />
     </form>
