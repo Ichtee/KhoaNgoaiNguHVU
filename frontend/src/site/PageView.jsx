@@ -19,8 +19,12 @@ export default function PageView() {
   if (error) return <p className="empty">{error}</p>;
   if (!page) return <p className="empty">Đang tải…</p>;
 
-  const group = cats.find((c) => c.slug === page.group);
+  return <PageArticle page={page} cats={cats} />;
+}
 
+// also rendered by the admin's preview
+export function PageArticle({ page, cats }) {
+  const group = cats.find((c) => c.slug === page.group);
   return (
     <article className="article">
       <p className="crumb">

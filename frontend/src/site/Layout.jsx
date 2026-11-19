@@ -24,6 +24,7 @@ export default function Layout() {
 
   useEffect(() => {
     if (site.name) document.title = [site.name, site.university].filter(Boolean).join(' - ');
+    if (site.logo) document.querySelector('link[rel="icon"]')?.setAttribute('href', site.logo);
   }, [site]);
 
   useEffect(() => {
@@ -62,7 +63,7 @@ export default function Layout() {
       <header className="top">
         <div className="page bar">
           <Link to="/" className="brand" onClick={close}>
-            <img src="/logo-khoa.png" alt="" width="40" height="40" />
+            <img src={site.logo || '/logo-khoa.png'} alt="" width="40" height="40" />
             <span>
               <b>{site.name}</b>
               <small>{site.university}</small>

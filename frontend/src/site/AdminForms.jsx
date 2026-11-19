@@ -1,24 +1,16 @@
 import React, { useEffect, useState } from 'react';
+import { Eye } from 'lucide-react';
 import { api } from '../api';
-import { Markdown } from './parts';
 import { childrenOf, topLevel } from './tree';
 
 const DOCS = 'application/pdf,.doc,.docx,.xls,.xlsx';
 const IMAGES = 'image/jpeg,image/png,image/webp,image/gif';
 
 function Editor({ label, value, onChange }) {
-  const [preview, setPreview] = useState(false);
   return (
     <div className="field">
-      <div className="row between">
-        <span className="lbl">{label}</span>
-        <button type="button" className="linkbtn" onClick={() => setPreview(!preview)}>{preview ? 'Quay lại soạn thảo' : 'Xem trước'}</button>
-      </div>
-      {preview ? (
-        <div className="preview-box"><Markdown>{value || '*Chưa có nội dung*'}</Markdown></div>
-      ) : (
-        <textarea rows="14" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />
-      )}
+      <span className="lbl">{label}</span>
+      <textarea rows="14" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />
       <span className="hint">Markdown: **đậm**, [chữ hiển thị](https://địa-chỉ), "- " đầu dòng cho danh sách, "## " cho tiêu đề nhỏ, bảng dùng dấu |.</span>
     </div>
   );
@@ -108,14 +100,24 @@ const AUTHOR_KEY = 'hvu_author';
 const rememberedAuthor = () => { try { return localStorage.getItem(AUTHOR_KEY) || ''; } catch { return ''; } };
 const rememberAuthor = (name) => { try { localStorage.setItem(AUTHOR_KEY, name); } catch { /* private mode: just don't remember */ } };
 
+// The draft tab (/xem-nhap, see Draft.jsx) reads the form from here and redraws on every change.
+export const DRAFT_KEY = 'hvu_draft';
+function useDraft(kind, data) {
+  const json = JSON.stringify({ kind, data });
+  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, json); } catch { /* private mode: the draft tab says there is nothing */ } }, [json]);
+  useEffect(() => () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* same */ } }, []);
+}
+
 const Actions = ({ busy, error, onCancel }) => (
-  <>
+  <div className="form-bar">
     {error && <p className="err" role="alert">{error}</p>}
-    <div className="row">
+    <div className="row wrap">
       <button className="btn" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu'}</button>
+      {/* a link inside the form, so the unsaved-changes guard lets it through */}
+      <a className="btn ghost" href="/xem-nhap" target="_blank" rel="noreferrer"><Eye size={18} /> Xem nháp trên website</a>
       <button type="button" className="btn ghost" onClick={onCancel}>Hủy</button>
     </div>
-  </>
+  </div>
 );
 
 export function PostForm({ cats, initial, onSaved, onCancel }) {
@@ -126,6 +128,7 @@ export function PostForm({ cats, initial, onSaved, onCancel }) {
     onSaved,
     onCancel
   );
+  useDraft('post', f);
 
   // the post stores one slug: a child's, or the big section's own when no child is picked
   const current = cats.find((c) => c.slug === f.category);
@@ -164,7 +167,12 @@ export function PostForm({ cats, initial, onSaved, onCancel }) {
       <label>Tóm tắt<textarea rows="2" value={f.excerpt} onChange={set('excerpt')} /></label>
       <Editor label="Nội dung" value={f.content} onChange={(content) => setF({ ...f, content })} />
       <label>Ảnh bìa (JPG, PNG, WEBP, GIF)<input type="file" accept={IMAGES} onChange={uploadCover} /></label>
-      {f.coverImage && <img className="preview" src={f.coverImage} alt="" />}
+      {f.coverImage && (
+        <div className="row">
+          <img className="preview" src={f.coverImage} alt="Ảnh bìa đã chọn" />
+          <button type="button" className="linkbtn" onClick={() => setF({ ...f, coverImage: '' })}>Gỡ ảnh bìa</button>
+        </div>
+      )}
       <FilesField files={f.files} onChange={(files) => setF((s) => ({ ...s, files }))} onError={setError} />
       <label className="check"><input type="checkbox" checked={f.isFeatured} onChange={set('isFeatured')} /> Bài nổi bật (hiện lớn ở trang chủ)</label>
       <label className="check"><input type="checkbox" checked={f.pinned} onChange={set('pinned')} /> Ghim vào “Thông báo quan trọng” ở trang chủ</label>
@@ -183,6 +191,7 @@ export function PageForm({ cats, initial, onSaved, onCancel }) {
     onSaved,
     onCancel
   );
+  useDraft('page', f);
 
   return (
     <form className="box form" onSubmit={submit}>

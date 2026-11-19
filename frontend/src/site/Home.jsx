@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
-import { api, fmtDate } from '../api';
-import { Cover, DateLink } from './parts';
+import { api } from '../api';
+import { DateLink } from './parts';
 import { topLevel, treeSlugs } from './tree';
 import Intro from './Intro';
+import Slides from './Slides';
 
 export default function Home() {
   const { cats, site } = useOutletContext();
@@ -26,9 +27,10 @@ export default function Home() {
   // pinned notices get their own block, so the lead story and the list never repeat them
   const pinned = posts.filter((p) => p.pinnedNow);
   const normal = posts.filter((p) => !p.pinnedNow);
-  const lead = normal.find((p) => p.isFeatured) || normal[0];
-  const latest = normal.filter((p) => p !== lead).slice(0, 6);
-  const leadCat = lead && cats.find((c) => c.slug === lead.category);
+  const featured = normal.filter((p) => p.isFeatured).slice(0, 5);
+  const slides = featured.length ? featured : normal.slice(0, 1);
+  const lead = slides[0];
+  const latest = normal.filter((p) => !slides.includes(p)).slice(0, 6);
 
   // one column per top-level category that has posts (its children's posts count)
   const columns = topLevel(cats)
@@ -37,7 +39,7 @@ export default function Home() {
 
   return (
     <>
-      <section className="hero">
+      <section className={site.heroImage ? 'hero photo' : 'hero'} style={site.heroImage ? { '--hero': `url(${JSON.stringify(site.heroImage)})` } : undefined}>
         <div className="page hero-in">
           <div>
             <h1>{site.name}</h1>
@@ -47,7 +49,7 @@ export default function Home() {
               {site.facebook && <a className="btn line" href={site.facebook} target="_blank" rel="noreferrer">Facebook</a>}
             </div>
           </div>
-          <img src="/logo-khoa.png" alt={`Logo ${site.name || ''}`} width="200" height="200" />
+          <img src={site.logo || '/logo-khoa.png'} alt={`Logo ${site.name || ''}`} width="200" height="200" />
         </div>
       </section>
 
@@ -61,13 +63,7 @@ export default function Home() {
 
         {lead && (
           <section className="news">
-            <Link className="lead" to={`/bai-viet/${lead.slug}`}>
-              <Cover post={lead} />
-              {leadCat && <span className="cat">{leadCat.name}</span>}
-              <h2>{lead.title}</h2>
-              <p>{lead.excerpt}</p>
-              <time className="date">{fmtDate(lead.createdAt)}</time>
-            </Link>
+            <Slides posts={slides} cats={cats} />
             <div>
               <h2 className="label">Tin mới</h2>
               <ul className="rows">{latest.map((p) => <DateLink key={p.id} post={p} />)}</ul>

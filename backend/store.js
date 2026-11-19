@@ -220,7 +220,9 @@ const DEFAULT_SETTINGS = {
   phone: '0210 3710 249',
   email: 'khoangoaingu@hvu.edu.vn',
   facebook: 'https://www.facebook.com/profile.php?id=61584171670477',
-  website: 'https://www.hvu.edu.vn'
+  website: 'https://www.hvu.edu.vn',
+  logo: '/logo-khoa.png',
+  heroImage: ''
 };
 
 // the data of an older install, upgraded to the current shape, or null when there is none

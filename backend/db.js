@@ -44,7 +44,8 @@ const Post = mongoose.model('Post', new Schema({
 const Setting = mongoose.model('Setting', new Schema({
   key: unique,
   name: String, university: String, tagline: String,
-  address: String, phone: String, email: String, facebook: String, website: String
+  address: String, phone: String, email: String, facebook: String, website: String,
+  logo: String, heroImage: String
 }));
 
 // Login sessions. The browser keeps a random token; only its hash is stored, so a copy of the database cannot be used to log in.

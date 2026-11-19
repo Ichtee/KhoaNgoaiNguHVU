@@ -6,6 +6,7 @@ import PostList from './site/PostList';
 import PostPage from './site/PostPage';
 import PageView from './site/PageView';
 import Admin from './site/Admin';
+import Draft from './site/Draft';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="tim-kiem" element={<PostList />} />
         <Route path="bai-viet/:slug" element={<PostPage />} />
         <Route path="quan-tri/*" element={<Admin />} />
+        <Route path="xem-nhap" element={<Draft />} />
         <Route path="*" element={<p className="empty">Không tìm thấy trang.</p>} />
       </Route>
     </Routes>

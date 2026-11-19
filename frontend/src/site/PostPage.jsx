@@ -3,6 +3,28 @@ import { Link, useOutletContext, useParams } from 'react-router-dom';
 import { api, fmtDate } from '../api';
 import { Files, Markdown, Pin, PostCard } from './parts';
 
+// also rendered by the admin's preview, so a draft looks exactly like the published post
+export function PostArticle({ post, cats }) {
+  const cat = cats.find((c) => c.slug === post.category);
+  const parent = cat?.parent && cats.find((c) => c.slug === cat.parent);
+  return (
+    <article className="article">
+      <p className="crumb">
+        <Link to="/">Trang chủ</Link>
+        {parent && <> › <Link to={`/muc/${parent.slug}`}>{parent.name}</Link></>}
+        {cat && <> › <Link to={`/muc/${cat.slug}`}>{cat.name}</Link></>}
+      </p>
+      <h1>{post.title}</h1>
+      <p className="meta">
+        {cat && <span className="cat">{cat.name}</span>} <Pin post={post} /> <time className="date">{fmtDate(post.createdAt)}</time>
+      </p>
+      {post.coverImage && <img className="post-cover" src={post.coverImage} alt="" />}
+      <Markdown>{post.content}</Markdown>
+      <Files files={post.files} />
+    </article>
+  );
+}
+
 export default function PostPage() {
   const { slug } = useParams();
   const { cats } = useOutletContext();
@@ -28,24 +50,10 @@ export default function PostPage() {
   if (!post) return <p className="empty">Đang tải…</p>;
 
   const cat = cats.find((c) => c.slug === post.category);
-  const parent = cat?.parent && cats.find((c) => c.slug === cat.parent);
 
   return (
     <>
-      <article className="article">
-        <p className="crumb">
-          <Link to="/">Trang chủ</Link>
-          {parent && <> › <Link to={`/muc/${parent.slug}`}>{parent.name}</Link></>}
-          {cat && <> › <Link to={`/muc/${cat.slug}`}>{cat.name}</Link></>}
-        </p>
-        <h1>{post.title}</h1>
-        <p className="meta">
-          {cat && <span className="cat">{cat.name}</span>} <Pin post={post} /> <time className="date">{fmtDate(post.createdAt)}</time>
-        </p>
-        {post.coverImage && <img className="post-cover" src={post.coverImage} alt="" />}
-        <Markdown>{post.content}</Markdown>
-        <Files files={post.files} />
-      </article>
+      <PostArticle post={post} cats={cats} />
 
       {related.length > 0 && (
         <>

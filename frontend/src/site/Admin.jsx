@@ -1,8 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { NavLink, Route, Routes, useOutletContext, useParams } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
 import { api, fmtDate, getToken, setToken } from '../api';
 import { PostForm, PageForm } from './AdminForms';
 import { childrenOf, topLevel, treeSlugs } from './tree';
+
+// a plain message, or { text, href } after a save so the admin can open what they just published
+const Notice = ({ notice }) =>
+  notice ? (
+    <p className="ok" role="status">
+      {notice.text || notice}
+      {notice.href && <> <a href={notice.href} target="_blank" rel="noreferrer">Xem trên website →</a></>}
+    </p>
+  ) : null;
 
 function Login({ onDone }) {
   const [f, setF] = useState({ username: '', password: '' });
@@ -19,8 +29,8 @@ function Login({ onDone }) {
   return (
     <form className="box form narrow" onSubmit={submit}>
       <h2>Đăng nhập quản trị</h2>
-      <input aria-label="Tên đăng nhập" placeholder="Tên đăng nhập" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} required />
-      <input aria-label="Mật khẩu" type="password" placeholder="Mật khẩu" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} required />
+      <input aria-label="Tên đăng nhập" autoComplete="username" placeholder="Tên đăng nhập" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} required />
+      <input aria-label="Mật khẩu" type="password" autoComplete="current-password" placeholder="Mật khẩu" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} required />
       {error && <p className="err" role="alert">{error}</p>}
       <button className="btn">Đăng nhập</button>
     </form>
@@ -56,7 +66,7 @@ function PostsAdmin({ posts, cats, reload, guard }) {
         cats={cats}
         initial={editing}
         onCancel={() => setEditing(null)}
-        onSaved={(saved) => { setEditing(null); setNotice(`Đã lưu bài “${saved.title}”.`); reload(); }}
+        onSaved={(saved) => { setEditing(null); setNotice({ text: `Đã lưu bài “${saved.title}”.`, href: `/bai-viet/${saved.slug}` }); reload(); }}
       />
     );
   }
@@ -75,7 +85,7 @@ function PostsAdmin({ posts, cats, reload, guard }) {
           + Viết bài {target ? `trong “${nameOf(target)}”` : 'mới'}
         </button>
       </div>
-      {notice && <p className="ok" role="status">{notice}</p>}
+      <Notice notice={notice} />
 
       {kids.length > 0 && (
         <div className="chips" role="group" aria-label="Lọc theo mục con">
@@ -139,7 +149,7 @@ function PagesAdmin({ cats, pages, reload, guard }) {
         cats={cats}
         initial={editing}
         onCancel={() => setEditing(null)}
-        onSaved={(saved) => { setEditing(null); setNotice(`Đã lưu trang “${saved.title}”.`); reload(); }}
+        onSaved={(saved) => { setEditing(null); setNotice({ text: `Đã lưu trang “${saved.title}”.`, href: `/trang/${saved.slug}` }); reload(); }}
       />
     );
   }
@@ -157,7 +167,7 @@ function PagesAdmin({ cats, pages, reload, guard }) {
         <button className="btn" onClick={() => { setNotice(''); setEditing({}); }}>+ Trang mới</button>
       </div>
       <p className="hint">Nội dung ít thay đổi như lịch sử, giới thiệu ngành, tuyển sinh. Trang hiện trong menu của mục đã chọn.</p>
-      {notice && <p className="ok" role="status">{notice}</p>}
+      <Notice notice={notice} />
       <div className="table-wrap">
         <table className="admin-table">
           <thead><tr><th>Trang</th><th>Hiện trong menu của mục</th><th /></tr></thead>
@@ -191,6 +201,34 @@ const SETTING_FIELDS = [
   ['website', 'Website của trường (bắt đầu bằng https://)']
 ];
 
+const IMAGE_FIELDS = [
+  ['logo', 'Logo (đầu trang, trang chủ, biểu tượng tab)'],
+  ['heroImage', 'Ảnh nền khối đầu trang chủ (để trống = nền xanh)']
+];
+
+// paste an image address, or upload one from this computer
+function ImageField({ label, value, onChange, onError }) {
+  const upload = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      onChange((await api.upload(file)).url);
+      onError('');
+    } catch (err) {
+      onError(err.message);
+    }
+  };
+  return (
+    <div className="field">
+      <span className="lbl">{label}</span>
+      <input aria-label={label} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder="https://… hoặc chọn ảnh từ máy" />
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label={`Tải ảnh lên: ${label}`} onChange={upload} />
+      {value && <img className="preview" src={value} alt="" />}
+    </div>
+  );
+}
+
 function SettingsForm({ site, reload }) {
   const [f, setF] = useState(site);
   const [error, setError] = useState('');
@@ -216,6 +254,9 @@ function SettingsForm({ site, reload }) {
         <label key={key}>{label}
           <input value={f[key] || ''} onChange={(e) => setF({ ...f, [key]: e.target.value })} required={key === 'name'} />
         </label>
+      ))}
+      {IMAGE_FIELDS.map(([key, label]) => (
+        <ImageField key={key} label={label} value={f[key]} onChange={(v) => setF((s) => ({ ...s, [key]: v }))} onError={setError} />
       ))}
       {error && <p className="err" role="alert">{error}</p>}
       <div className="row"><button className="btn">Lưu</button><span className="ok-text" role="status">{msg}</span></div>
@@ -316,6 +357,7 @@ export default function Admin() {
         <NavLink to="/quan-tri/trang">Trang cố định</NavLink>
         <NavLink to="/quan-tri/chuyen-muc">Chuyên mục</NavLink>
         <NavLink to="/quan-tri/thong-tin">Thông tin khoa</NavLink>
+        <a className="admin-site" href="/" target="_blank" rel="noreferrer"><ExternalLink size={16} /> Xem website</a>
         <button className="linkbtn logout" onClick={logout}>Đăng xuất</button>
       </nav>
 

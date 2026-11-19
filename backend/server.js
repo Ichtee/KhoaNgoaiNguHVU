@@ -127,7 +127,8 @@ app.post('/api/logout', wrap(async (req, res) => {
 }));
 
 // ---- site settings: name, contact details and links shown on every page
-const SETTING_FIELDS = ['name', 'university', 'tagline', 'address', 'phone', 'email', 'facebook', 'website'];
+const SETTING_FIELDS = ['name', 'university', 'tagline', 'address', 'phone', 'email', 'facebook', 'website', 'logo', 'heroImage'];
+const IMAGE_URL = /^(https?:\/\/\S+|\/uploads\/[\w.-]+|\/logo-khoa\.png)$/i; // a web address, or a file we stored
 const siteSettings = () => Setting.findOne({ key: 'site' }).select(`${HIDE} -key`).lean();
 
 app.get('/api/settings', wrap(async (req, res) => res.json((await siteSettings()) || {})));
@@ -138,6 +139,9 @@ app.put('/api/settings', admin, wrap(async (req, res) => {
   if (!data.name) return res.status(400).json({ message: 'Cần có tên khoa' });
   for (const f of ['facebook', 'website']) {
     if (data[f] && !/^https?:\/\//i.test(data[f])) return res.status(400).json({ message: 'Liên kết phải bắt đầu bằng http:// hoặc https://' });
+  }
+  for (const f of ['logo', 'heroImage']) {
+    if (data[f] && !IMAGE_URL.test(data[f])) return res.status(400).json({ message: 'Ảnh phải là địa chỉ bắt đầu bằng https:// hoặc ảnh tải lên từ máy' });
   }
   await Setting.updateOne({ key: 'site' }, data, { upsert: true });
   res.json(await siteSettings());
