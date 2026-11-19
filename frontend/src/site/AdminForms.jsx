@@ -1,20 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Eye } from 'lucide-react';
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Camera, Eye, ImagePlus, X } from 'lucide-react';
 import { api } from '../api';
 import { childrenOf, topLevel } from './tree';
 
 const DOCS = 'application/pdf,.doc,.docx,.xls,.xlsx';
 const IMAGES = 'image/jpeg,image/png,image/webp,image/gif';
-
-function Editor({ label, value, onChange }) {
-  return (
-    <div className="field">
-      <span className="lbl">{label}</span>
-      <textarea rows="14" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />
-      <span className="hint">Markdown: **đậm**, [chữ hiển thị](https://địa-chỉ), "- " đầu dòng cho danh sách, "## " cho tiêu đề nhỏ, bảng dùng dấu |.</span>
-    </div>
-  );
-}
 
 function FilesField({ files, onChange, onError }) {
   const [busy, setBusy] = useState(false);
@@ -48,71 +38,6 @@ function FilesField({ files, onChange, onError }) {
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-// Pictures live in the text as ![alt](url), optionally followed by an *italic caption* line.
-// The grid below edits those in place, so the text stays the single source of truth.
-const IMG = /!\[([^\]]*)\]\(([^)\s]+)\)(\n\*[^*\n]+\*)?/g;
-export const imagesIn = (text) => [...text.matchAll(IMG)].map((m) => ({ url: m[2], whole: m[0], at: m.index }));
-const tidy = (text) => text.replace(/## Hình ảnh\s*(?=\*Nguồn|##|$)/, '').replace(/\n{3,}/g, '\n\n').trim();
-export function removeImage(text, k) {
-  const im = imagesIn(text)[k];
-  return tidy(text.slice(0, im.at) + text.slice(im.at + im.whole.length));
-}
-export function swapImages(text, a, b) {
-  const all = imagesIn(text);
-  const [x, y] = a < b ? [all[a], all[b]] : [all[b], all[a]];
-  return text.slice(0, x.at) + y.whole + text.slice(x.at + x.whole.length, y.at) + x.whole + text.slice(y.at + y.whole.length);
-}
-// new pictures go after the existing ones, above a closing "*Nguồn: …*" line if there is one
-export function addImages(text, urls, alt) {
-  const block = urls.map((u) => `![${alt.replace(/[[\]]/g, '')}](${u})`).join('\n\n');
-  const source = /\n*\*Nguồn:[^\n]*\*\s*$/.exec(text);
-  return source ? `${text.slice(0, source.index)}\n\n${block}\n\n${text.slice(source.index).trim()}` : `${text.trim()}\n\n${block}`.trim();
-}
-
-function ImagesField({ content, editContent, cover, onCover, alt, onError }) {
-  const [busy, setBusy] = useState(false);
-  const imgs = imagesIn(content);
-  const add = async (e) => {
-    const picked = [...e.target.files];
-    e.target.value = '';
-    if (!picked.length) return;
-    setBusy(true);
-    const urls = [];
-    try {
-      for (const file of picked) urls.push((await api.upload(file)).url);
-      onError('');
-    } catch (err) {
-      onError(err.message);
-    }
-    if (urls.length) editContent((c) => addImages(c, urls, alt)); // keep the ones that uploaded even if a later one failed
-    setBusy(false);
-  };
-  return (
-    <div className="field">
-      <span className="lbl">Ảnh trong bài ({imgs.length})</span>
-      {imgs.length > 0 && (
-        <ul className="imgs">
-          {imgs.map((im, k) => (
-            <li key={`${k}-${im.url}`}>
-              <img src={im.url} alt={`Ảnh ${k + 1}`} loading="lazy" />
-              {onCover && cover === im.url && <span className="badge">Ảnh bìa</span>}
-              <div className="tools">
-                <button type="button" aria-label={`Đưa ảnh ${k + 1} lên trước`} disabled={k === 0} onClick={() => editContent((c) => swapImages(c, k, k - 1))}>←</button>
-                <button type="button" aria-label={`Đưa ảnh ${k + 1} ra sau`} disabled={k === imgs.length - 1} onClick={() => editContent((c) => swapImages(c, k, k + 1))}>→</button>
-                {onCover && cover !== im.url && <button type="button" onClick={() => onCover(im.url)}>Làm ảnh bìa</button>}
-                <button type="button" className="danger" aria-label={`Gỡ ảnh ${k + 1}`} onClick={() => editContent((c) => removeImage(c, k))}>Gỡ</button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      <label className="addimg">{busy ? 'Đang tải ảnh lên…' : '+ Thêm ảnh (chọn được nhiều ảnh)'}
-        <input type="file" multiple accept={IMAGES} onChange={add} disabled={busy} />
-      </label>
     </div>
   );
 }
@@ -185,6 +110,73 @@ const Actions = ({ busy, error, onCancel }) => (
   </div>
 );
 
+// the body editor is big; it is fetched only when a post or page is opened for editing
+const RichEditor = lazy(() => import('./editor/RichEditor'));
+const Body = (props) => (
+  <Suspense fallback={<p className="empty">Đang mở trình soạn thảo…</p>}>
+    <RichEditor {...props} />
+  </Suspense>
+);
+
+// a textarea that grows with its text, styled by its class to look like the published title or lead
+function Grow({ className, value, onChange, label, placeholder, required, oneLine }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea ref={ref} rows={1} className={className} aria-label={label} placeholder={placeholder} required={required} value={value}
+      onChange={(e) => onChange(oneLine ? e.target.value.replace(/\s*\n+\s*/g, ' ') : e.target.value)}
+      onKeyDown={(e) => { if (oneLine && e.key === 'Enter') e.preventDefault(); }} />
+  );
+}
+
+// The cover where readers see it, with its controls on the picture, as on a social profile.
+export function CoverField({ url, onChange, onError }) {
+  const [busy, setBusy] = useState(false);
+  const pick = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    try {
+      onChange((await api.upload(file)).url);
+      onError('');
+    } catch (err) {
+      onError(err.message);
+    }
+    setBusy(false);
+  };
+  const input = <input type="file" accept={IMAGES} onChange={pick} disabled={busy} />;
+  if (!url) {
+    return (
+      <label className="cover-edit empty">
+        <ImagePlus size={28} aria-hidden="true" />
+        <span>{busy ? 'Đang tải ảnh lên…' : '+ Thêm ảnh bìa'}</span>
+        {input}
+      </label>
+    );
+  }
+  return (
+    <div className="cover-edit">
+      <img src={url} alt="Ảnh bìa" />
+      <div className="cover-tools">
+        <label className="cover-btn"><Camera size={16} aria-hidden="true" /> {busy ? 'Đang tải…' : 'Đổi ảnh bìa'}{input}</label>
+        <button type="button" className="cover-btn" onClick={() => onChange('')}><X size={16} aria-hidden="true" /> Gỡ</button>
+      </div>
+    </div>
+  );
+}
+
+const Side = ({ children, busy, error, onCancel }) => (
+  <aside className="studio-side">
+    <Actions busy={busy} error={error} onCancel={onCancel} />
+    <div className="studio-settings">{children}</div>
+  </aside>
+);
+
 export function PostForm({ cats, initial, onSaved, onCancel }) {
   const empty = { title: '', excerpt: '', content: '', coverImage: '', category: '', isFeatured: false, pinned: false, pinnedUntil: '' };
   const { f, setF, set, error, setError, busy, submit, cancel } = useSave(
@@ -199,59 +191,39 @@ export function PostForm({ cats, initial, onSaved, onCancel }) {
   const current = cats.find((c) => c.slug === f.category);
   const group = current ? current.parent || current.slug : '';
   const kids = group ? childrenOf(cats, group) : []; // top-level categories have parent '', so never ask for children of ''
-
-  const uploadCover = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      setF({ ...f, coverImage: (await api.upload(file)).url });
-      setError('');
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  const field = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
 
   return (
-    <form className="box form" onSubmit={submit}>
-      <h2>{f.id ? 'Sửa bài viết' : 'Bài viết mới'}</h2>
-      <label>Tiêu đề<input value={f.title} onChange={set('title')} required /></label>
-      <label>Mục lớn
-        <select value={group} onChange={(e) => setF({ ...f, category: e.target.value })} required>
-          <option value="" disabled>— Chọn mục lớn —</option>
-          {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
-        </select>
-      </label>
-      {kids.length > 0 && (
-        <label>Mục con (bỏ trống thì bài thuộc thẳng mục đã chọn ở trên)
-          <select value={f.category === group ? '' : f.category} onChange={(e) => setF({ ...f, category: e.target.value || group })}>
-            <option value="">— Không chọn —</option>
-            {kids.map((k) => <option key={k.slug} value={k.slug}>{k.name}</option>)}
+    <form className="studio" onSubmit={submit}>
+      <div className="studio-canvas article">
+        <p className="studio-kicker">{f.id ? 'Sửa bài viết' : 'Bài viết mới'}</p>
+        <CoverField url={f.coverImage} onChange={field('coverImage')} onError={setError} />
+        <span className="cat">{current ? current.name : 'Chưa chọn chuyên mục'}</span>
+        <Grow className="studio-title" label="Tiêu đề" placeholder="Tiêu đề bài viết" required oneLine value={f.title} onChange={field('title')} />
+        <Grow className="studio-lead" label="Tóm tắt" placeholder="Tóm tắt ngắn hiện ở danh sách bài…" value={f.excerpt} onChange={field('excerpt')} />
+        <Body value={f.content} onChange={field('content')} alt={f.title} onError={setError} onCover={field('coverImage')} />
+        <FilesField files={f.files} onChange={field('files')} onError={setError} />
+      </div>
+      <Side busy={busy} error={error} onCancel={cancel}>
+        <label>Mục lớn
+          <select value={group} onChange={(e) => setF({ ...f, category: e.target.value })} required>
+            <option value="" disabled>— Chọn mục lớn —</option>
+            {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
           </select>
         </label>
-      )}
-      <label>Tóm tắt<textarea rows="2" value={f.excerpt} onChange={set('excerpt')} /></label>
-      <Editor label="Nội dung" value={f.content} onChange={(content) => setF({ ...f, content })} />
-      <label>{f.coverImage ? 'Đổi ảnh bìa' : 'Ảnh bìa'} (JPG, PNG, WEBP, GIF)<input type="file" accept={IMAGES} onChange={uploadCover} /></label>
-      {f.coverImage && (
-        <div className="row">
-          <img className="preview" src={f.coverImage} alt="Ảnh bìa đã chọn" />
-          <button type="button" className="linkbtn" onClick={() => setF({ ...f, coverImage: '' })}>Gỡ ảnh bìa</button>
-        </div>
-      )}
-      <ImagesField
-        content={f.content}
-        editContent={(fn) => setF((s) => ({ ...s, content: fn(s.content) }))}
-        cover={f.coverImage}
-        onCover={(url) => setF((s) => ({ ...s, coverImage: url }))}
-        alt={f.title}
-        onError={setError}
-      />
-      <FilesField files={f.files} onChange={(files) => setF((s) => ({ ...s, files }))} onError={setError} />
-      <label className="check"><input type="checkbox" checked={f.isFeatured} onChange={set('isFeatured')} /> Bài nổi bật (hiện lớn ở trang chủ)</label>
-      <label className="check"><input type="checkbox" checked={f.pinned} onChange={set('pinned')} /> Ghim vào “Thông báo quan trọng” ở trang chủ</label>
-      {f.pinned && <label>Ghim đến hết ngày (để trống = ghim cho tới khi bỏ ghim)<input type="date" value={f.pinnedUntil} onChange={set('pinnedUntil')} /></label>}
-      <label>Người đăng (chỉ hiện trong trang quản trị; máy này sẽ nhớ tên)<input value={f.author} onChange={set('author')} maxLength={80} /></label>
-      <Actions busy={busy} error={error} onCancel={cancel} />
+        {kids.length > 0 && (
+          <label>Mục con
+            <select value={f.category === group ? '' : f.category} onChange={(e) => setF({ ...f, category: e.target.value || group })}>
+              <option value="">— Không chọn —</option>
+              {kids.map((k) => <option key={k.slug} value={k.slug}>{k.name}</option>)}
+            </select>
+          </label>
+        )}
+        <label className="check"><input type="checkbox" checked={f.isFeatured} onChange={set('isFeatured')} /> Bài nổi bật (hiện lớn ở trang chủ)</label>
+        <label className="check"><input type="checkbox" checked={f.pinned} onChange={set('pinned')} /> Ghim vào “Thông báo quan trọng”</label>
+        {f.pinned && <label>Ghim đến hết ngày (để trống = ghim cho tới khi bỏ ghim)<input type="date" value={f.pinnedUntil} onChange={set('pinnedUntil')} /></label>}
+        <label>Người đăng (chỉ hiện trong trang quản trị)<input value={f.author} onChange={set('author')} maxLength={80} /></label>
+      </Side>
     </form>
   );
 }
@@ -265,21 +237,26 @@ export function PageForm({ cats, initial, onSaved, onCancel }) {
     onCancel
   );
   useDraft('page', f);
+  const field = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
+  const group = cats.find((c) => c.slug === f.group);
 
   return (
-    <form className="box form" onSubmit={submit}>
-      <h2>{f.slug ? 'Sửa trang' : 'Trang mới'}</h2>
-      <label>Tiêu đề<input value={f.title} onChange={set('title')} required /></label>
-      <label>Hiện trong menu của mục
-        <select value={f.group} onChange={set('group')}>
-          <option value="">— Không hiện trong menu (chỉ vào bằng liên kết) —</option>
-          {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
-        </select>
-      </label>
-      <Editor label="Nội dung" value={f.content} onChange={(content) => setF({ ...f, content })} />
-      <ImagesField content={f.content} editContent={(fn) => setF((s) => ({ ...s, content: fn(s.content) }))} alt={f.title} onError={setError} />
-      <FilesField files={f.files} onChange={(files) => setF((s) => ({ ...s, files }))} onError={setError} />
-      <Actions busy={busy} error={error} onCancel={cancel} />
+    <form className="studio" onSubmit={submit}>
+      <div className="studio-canvas article">
+        <p className="studio-kicker">{f.slug ? 'Sửa trang' : 'Trang mới'}</p>
+        <span className="cat">{group ? group.name : 'Không hiện trong menu'}</span>
+        <Grow className="studio-title" label="Tiêu đề" placeholder="Tiêu đề trang" required oneLine value={f.title} onChange={field('title')} />
+        <Body value={f.content} onChange={field('content')} alt={f.title} onError={setError} />
+        <FilesField files={f.files} onChange={field('files')} onError={setError} />
+      </div>
+      <Side busy={busy} error={error} onCancel={cancel}>
+        <label>Hiện trong menu của mục
+          <select value={f.group} onChange={set('group')}>
+            <option value="">— Không hiện trong menu (chỉ vào bằng liên kết) —</option>
+            {topLevel(cats).map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
+          </select>
+        </label>
+      </Side>
     </form>
   );
 }
