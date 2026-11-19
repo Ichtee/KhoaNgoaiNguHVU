@@ -10,7 +10,7 @@ const read = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY)); }
 
 // The unsaved form from the admin, drawn inside the real site layout. It lives only in this browser's storage.
 export default function Draft() {
-  const { cats } = useOutletContext();
+  const { cats, pages, site } = useOutletContext();
   const [draft, setDraft] = useState(read);
   const [broken, setBroken] = useState([]);
   const box = useRef(null);
@@ -58,7 +58,7 @@ export default function Draft() {
 
       <div ref={box}>
         {draft.kind === 'page' ? (
-          <PageArticle page={{ ...f, title: f.title || '(Chưa có tiêu đề)' }} cats={cats} />
+          <PageArticle page={{ ...f, title: f.title || '(Chưa có tiêu đề)' }} cats={cats} pages={pages} site={site} />
         ) : (
           <>
             <PostArticle post={post} cats={cats} />

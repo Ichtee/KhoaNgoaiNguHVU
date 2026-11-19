@@ -8,9 +8,12 @@ import { fmtDate } from '../api';
 const external = ({ href, children }) =>
   /^https?:/.test(href || '') ? <a href={href} target="_blank" rel="noreferrer">{children}</a> : <a href={href}>{children}</a>;
 
+// wide tables scroll inside their own box instead of widening the page
+const table = ({ children }) => <div className="tablewrap"><table>{children}</table></div>;
+
 export const Markdown = ({ children }) => (
   <div className="prose">
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: external }}>{children}</ReactMarkdown>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: external, table }}>{children}</ReactMarkdown>
   </div>
 );
 

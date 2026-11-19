@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { PostCard } from './parts';
+import SectionHub from './SectionHub';
 
 const PER_PAGE = 9;
 const DAY = 864e5;
@@ -31,7 +32,7 @@ export default function PostList() {
   const { slug } = useParams(); // undefined on /tim-kiem
   const [params, setParams] = useSearchParams();
   const q = params.get('q') || '';
-  const { cats, pages } = useOutletContext();
+  const { cats, pages, site } = useOutletContext();
   const [posts, setPosts] = useState(null);
   const [page, setPage] = useState(1);
 
@@ -79,20 +80,21 @@ export default function PostList() {
   const shown = posts ? filterPosts(posts, f) : [];
   const pageCount = Math.ceil(shown.length / PER_PAGE);
 
+  const count = posts && <p role="status">{filtering ? `${shown.length} / ${posts.length} bài viết` : `${posts.length} bài viết`}</p>;
+
   return (
     <>
-      <div className="pagehead">
-        {parent && <p className="crumb"><Link to="/">Trang chủ</Link> › <Link to={`/muc/${parent.slug}`}>{parent.name}</Link></p>}
-        <h1>{title}</h1>
-        {posts && (posts.length > 0 || fixed.length === 0) && (
-          <p role="status">{filtering ? `${shown.length} / ${posts.length} bài viết` : `${posts.length} bài viết`}</p>
-        )}
-      </div>
-
-      {fixed.length > 0 && (
-        <ul className="subnav">
-          {fixed.map((p) => <li key={p.slug}><Link to={`/trang/${p.slug}`}>{p.title}</Link></li>)}
-        </ul>
+      {fixed.length > 0 && cat ? (
+        <>
+          <SectionHub cat={cat} pages={fixed} site={site} showContact={posts !== null && posts.length === 0} />
+          {posts && posts.length > 0 && <div className="pagehead in-section"><h2 className="label">Bài viết trong mục</h2>{count}</div>}
+        </>
+      ) : (
+        <div className="pagehead">
+          {parent && <p className="crumb"><Link to="/">Trang chủ</Link> › <Link to={`/muc/${parent.slug}`}>{parent.name}</Link></p>}
+          <h1>{title}</h1>
+          {count}
+        </div>
       )}
 
       {posts && posts.length > 0 && (
