@@ -8,6 +8,8 @@ import Slides from './Slides';
 import { EditPin, MoveButtons, PostTools, useAdmin, useAdminAction, useHere } from './admin/OnSite';
 import { newPostHref, settingsHref } from './admin/links';
 import { move } from './admin/order';
+import FeaturedPicker from './admin/FeaturedPicker';
+import { Star } from 'lucide-react';
 
 export default function Home() {
   const { cats, site, reload } = useOutletContext();
@@ -16,6 +18,7 @@ export default function Home() {
   const act = useAdminAction();
   const [posts, setPosts] = useState(null);
   const [error, setError] = useState('');
+  const [picking, setPicking] = useState(false);
   const { hash, key } = useLocation(); // key changes on every click, even to the same #anchor
 
   const load = useCallback(() => api.posts().then(setPosts).catch((e) => setError(e.message)), []);
@@ -78,7 +81,10 @@ export default function Home() {
 
         {lead && (
           <section className="news">
-            <Slides posts={slides} cats={cats} tools={tools} />
+            <div>
+              <Slides posts={slides} cats={cats} tools={tools} />
+              {admin && <button type="button" className="edit-pin pick-btn" onClick={() => setPicking(true)}><Star size={13} aria-hidden="true" /> Chọn bài nổi bật</button>}
+            </div>
             <div>
               <h2 className="label">Tin mới</h2>
               <ul className="rows">{latest.map((p) => <DateLink key={p.id} post={p} tools={tools(p)} />)}</ul>
@@ -107,6 +113,8 @@ export default function Home() {
             </div>
           ))}
         </section>
+
+        {picking && <FeaturedPicker posts={posts} onChanged={load} onClose={() => setPicking(false)} />}
 
         <section id="gioi-thieu" className="anchor">
           <Intro />

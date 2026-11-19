@@ -247,6 +247,19 @@ nav { margin-left: auto; }
 .doc-side > .edit-pin { align-self: flex-start; margin: 10px 0 0; }
 .lede { font-size: 17px; }
 .back-to-site { margin: 0 0 12px; font-weight: 600; }
+.news > div { min-width: 0; } /* the slides scroll inside their column */
+.pick-btn { margin: 10px 0 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+.picker-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgb(15 20 40 / .5); }
+.picker { display: flex; flex-direction: column; gap: 8px; width: min(640px, 100%); max-height: min(80vh, 720px); padding: 20px; border-radius: 12px; background: #fff; box-shadow: 0 20px 50px rgb(0 0 0 / .25); }
+.picker-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.picker-head h2 { margin: 0; font-size: 20px; }
+.picker .hint { margin: 0; }
+.picker-list { overflow-y: auto; margin: 4px -4px 0; }
+.picker-list label { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 8px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.picker-list label:hover { background: var(--soft); }
+.picker-list input { width: 20px; height: 20px; flex: none; }
+.picker-list input:disabled + .picker-title { color: var(--muted); }
+.picker-title { flex: 1; font-weight: 500; }
 .back-to-site a { color: var(--navy); }
 @media (pointer: coarse) {
   .tool { width: 44px; height: 44px; }
