@@ -67,6 +67,7 @@ nav { margin-left: auto; }
 .hero-in { display: flex; align-items: center; justify-content: space-between; gap: 40px; min-height: clamp(360px, 46vh, 520px); padding-top: 56px; padding-bottom: 56px; }
 .hero h1 { margin: 0 0 12px; font-size: clamp(38px, 5vw, 72px); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
 .hero p { margin: 0; max-width: 60ch; font-size: 18px; opacity: .88; text-wrap: balance; }
+.hero .hero-school { margin-bottom: 10px; font-size: 15px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .95; }
 .hero img { flex: none; width: 176px; height: 176px; border: 6px solid rgb(255 255 255 / .9); border-radius: 50%; background: #fff; box-shadow: 0 12px 32px rgb(0 0 0 / .3); }
 .cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
 

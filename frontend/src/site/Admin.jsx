@@ -293,15 +293,16 @@ function HomeScreen({ site, reload, posts, loadPosts }) {
         <h2><span className="step-n" aria-hidden="true">1</span> Ảnh lớn đầu trang</h2>
         <div className={site.heroImage ? 'hero photo hero-preview' : 'hero hero-preview'} style={hero}>
           <div className="hero-preview-in">
+            {site.university && <span>{site.university}</span>}
             <strong>{site.name}</strong>
-            <span>{[site.university, tagline].filter(Boolean).join(' · ')}</span>
+            {tagline && <span>{tagline}</span>}
           </div>
         </div>
         <div className="row wrap hero-tools">
           <CoverPicker onPicked={(url) => saveSettings({ heroImage: url })} onError={setError} text={site.heroImage ? 'Đổi ảnh' : '+ Chọn ảnh'} />
           {site.heroImage && <button type="button" className="btn ghost" onClick={() => window.confirm('Gỡ ảnh lớn? Đầu trang sẽ thành nền xanh.') && saveSettings({ heroImage: '' })}>Gỡ ảnh</button>}
         </div>
-        <label className="big-label">Dòng giới thiệu dưới tên khoa
+        <label className="big-label">Dòng giới thiệu dưới tên khoa (để trống thì không hiện)
           <span className="row wrap">
             <input className="big-input grow" value={tagline} onChange={(e) => { setTagline(e.target.value); setTaglineMsg(''); }} />
             <button type="button" className="btn" disabled={tagline === (site.tagline || '')} onClick={async () => { await saveSettings({ tagline }); setTaglineMsg('Đã lưu.'); }}>Lưu dòng này</button>

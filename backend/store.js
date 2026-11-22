@@ -215,7 +215,7 @@ function migrate(db) {
 const DEFAULT_SETTINGS = {
   name: 'Khoa Tiếng Anh',
   university: 'Trường Đại học Hùng Vương',
-  tagline: 'English Department, từ năm 1996',
+  tagline: '',
   address: 'Phường Nông Trang, Việt Trì, Phú Thọ',
   phone: '0210 3710 249',
   email: 'khoangoaingu@hvu.edu.vn',

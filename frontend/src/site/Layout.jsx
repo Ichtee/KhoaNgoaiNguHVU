@@ -136,8 +136,8 @@ export default function Layout() {
           <Link to="/" className="brand" onClick={close}>
             <img src={site.logo || '/logo-khoa.png'} alt="" width="40" height="40" />
             <span>
-              <b>{site.name}</b>
               <small>{site.university}</small>
+              <b>{site.name}</b>
             </span>
           </Link>
 

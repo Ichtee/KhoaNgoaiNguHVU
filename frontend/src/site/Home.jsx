@@ -44,8 +44,9 @@ export default function Home() {
       <section className={site.heroImage ? 'hero photo' : 'hero'} style={site.heroImage ? { '--hero': `url(${JSON.stringify(site.heroImage)})` } : undefined}>
         <div className="page hero-in">
           <div>
+            {site.university && <p className="hero-school">{site.university}</p>}
             <h1>{site.name}</h1>
-            <p>{[site.university, site.tagline].filter(Boolean).join(' · ')}</p>
+            {site.tagline && <p>{site.tagline}</p>}
             <div className="cta">
               <Link className="btn light" to="/#gioi-thieu">Giới thiệu khoa</Link>
               {site.facebook && <a className="btn line" href={site.facebook} target="_blank" rel="noreferrer">Facebook</a>}
