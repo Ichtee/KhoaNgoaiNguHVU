@@ -41,7 +41,7 @@ const DEFAULT_PAGES = {
     title: 'Giới thiệu chung',
     group: 'gioi-thieu',
     content:
-      'Khoa Tiếng Anh – Trường Đại học Hùng Vương (Hung Vuong University – English Department) thành lập từ năm 1996.\n\nKhoa đào tạo hai ngành **Sư phạm Tiếng Anh** và **Ngôn ngữ Anh**, đồng thời giảng dạy tiếng Anh, tiếng Nhật, tiếng Hàn cho sinh viên các ngành không chuyên ngữ.',
+      'Khoa Tiếng Anh – Trường Đại học Hùng Vương (Hung Vuong University – English Department) thành lập từ năm 1996.\n\nKhoa đào tạo hai ngành **Sư phạm Tiếng Anh** và **Ngôn ngữ Anh**, đồng thời giảng dạy tiếng Anh cho sinh viên các ngành không chuyên ngữ.',
     files: []
   },
   'lich-su': {
@@ -58,7 +58,7 @@ const DEFAULT_PAGES = {
       'Khoa Tiếng Anh thực hiện các nhiệm vụ:',
       '',
       '- Đào tạo ngành Sư phạm Tiếng Anh và Ngôn ngữ Anh.',
-      '- Giảng dạy tiếng Anh, tiếng Nhật, tiếng Hàn cho các hệ không chuyên ngữ ở bậc đại học và sau đại học.',
+      '- Giảng dạy tiếng Anh cho các hệ không chuyên ngữ ở bậc đại học và sau đại học.',
       '- Tổ chức các hoạt động giáo dục khác như nghiệp vụ sư phạm và thực tập chuyên môn.',
       '- Bồi dưỡng giáo viên ngoại ngữ cho các trường phổ thông.',
       '- Tham gia Đề án Ngoại ngữ Quốc gia.',
