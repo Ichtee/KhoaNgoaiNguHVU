@@ -27,8 +27,7 @@ export default function Home() {
   // pinned notices get their own block, so the lead story and the list never repeat them
   const pinned = posts.filter((p) => p.pinnedNow);
   const normal = posts.filter((p) => !p.pinnedNow);
-  const featured = normal.filter((p) => p.isFeatured).slice(0, 5);
-  const slides = featured.length ? featured : normal.slice(0, 1);
+  const slides = normal.slice(0, 5); // the five newest posts, so the slides update themselves
   const lead = slides[0];
   const latest = normal.filter((p) => !slides.includes(p)).slice(0, 5); // five rows sit level with the featured photo
 

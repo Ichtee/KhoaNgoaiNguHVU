@@ -95,7 +95,7 @@ function Dashboard({ posts, pages }) {
 const PAGE_SIZE = 20;
 
 const TIMES = [['', 'Mọi lúc'], ['7', '7 ngày qua'], ['30', '30 ngày qua'], ['90', '3 tháng qua'], ['nam', 'Năm nay']];
-const STATUSES = [['', 'Tất cả'], ['noi-bat', 'Tin nổi bật'], ['ghim', 'Đang ghim'], ['khong-anh', 'Chưa có ảnh bìa']];
+const STATUSES = [['', 'Tất cả'], ['ghim', 'Đang ghim'], ['khong-anh', 'Chưa có ảnh bìa']];
 
 // The filters live in the address, so going into a post and back keeps them.
 function PostsScreen({ posts, cats, loadPosts }) {
@@ -176,7 +176,6 @@ function PostsScreen({ posts, cats, loadPosts }) {
               <strong>{p.title}</strong>
               <span className="item-meta">
                 {fmtDate(p.createdAt)} · {nameOf(p.category)}
-                {p.isFeatured && <span className="tag">Tin nổi bật</span>}
                 {p.pinnedNow && <span className="tag">Đang ghim</span>}
               </span>
             </div>
@@ -254,17 +253,15 @@ function HomeScreen({ site, reload, posts, loadPosts }) {
   const act = useAction();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [adding, setAdding] = useState(''); // '' | 'featured' | 'pinned'
+  const [adding, setAdding] = useState(''); // '' | 'pinned'
   const [tagline, setTagline] = useState(site.tagline || '');
   const [taglineMsg, setTaglineMsg] = useState('');
   useEffect(() => setTagline(site.tagline || ''), [site.tagline]);
   if (!posts) return <p className="empty">Đang tải…</p>;
 
-  // what the home page shows: pinned notices first; the slides are the newest featured posts that are not pinned
+  // what the home page shows: pinned notices first; the slides are the newest posts that are not pinned (same as Home.jsx)
   const pinned = posts.filter((p) => p.pinnedNow).sort(byDate);
-  const featured = posts.filter((p) => p.isFeatured && !p.pinnedNow).sort(byDate);
-  const onSlides = featured.slice(0, MAX_FEATURED);
-  const hidden = featured.slice(MAX_FEATURED);
+  const onSlides = posts.filter((p) => !p.pinnedNow).sort(byDate).slice(0, MAX_FEATURED);
 
   const change = async (p, patch) => {
     setBusy(true);
@@ -327,25 +324,10 @@ function HomeScreen({ site, reload, posts, loadPosts }) {
 
       <section className="panel">
         <h2><span className="step-n" aria-hidden="true">3</span> Tin nổi bật (khối ảnh lớn có nút chuyển tin)</h2>
-        <p className="hint">Trang chủ hiện {MAX_FEATURED} tin nổi bật mới nhất. Đang hiện {onSlides.length}/{MAX_FEATURED}.</p>
-        {onSlides.length === 0 && <p className="empty">Chưa có tin nổi bật — trang chủ đang tự lấy tin mới nhất.</p>}
+        <p className="hint">Trang chủ tự hiện {MAX_FEATURED} tin mới đăng nhất (không tính tin đang ghim). Đăng tin mới là khối này tự cập nhật.</p>
         <ul className="home-cards">
-          {onSlides.map((p) => <Card key={p.id} p={p} action={<button type="button" className="btn ghost" disabled={busy} onClick={() => change(p, { isFeatured: false })}>Bỏ khỏi tin nổi bật</button>} />)}
+          {onSlides.map((p) => <Card key={p.id} p={p} />)}
         </ul>
-        {hidden.length > 0 && (
-          <div className="warn">
-            <p><b>{hidden.length} tin cũ hơn</b> vẫn đang đánh dấu nổi bật nhưng không hiện (vì đã đủ {MAX_FEATURED} tin mới hơn). Có thể bỏ đánh dấu cho gọn:</p>
-            <ul className="hidden-featured">
-              {hidden.map((p) => (
-                <li key={p.id}><span>{p.title}</span><button type="button" className="btn ghost" disabled={busy} onClick={() => change(p, { isFeatured: false })}>Bỏ đánh dấu</button></li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {adding === 'featured'
-          ? <AddPost posts={posts.filter((p) => !p.isFeatured)} pickText="Đưa lên nổi bật" onPick={(p) => change(p, { isFeatured: true })} onClose={() => setAdding('')} />
-          : <button type="button" className="btn big" onClick={() => setAdding('featured')}>+ Thêm tin nổi bật</button>}
-        {adding === 'featured' && onSlides.length >= MAX_FEATURED && <p className="hint">Đã đủ {MAX_FEATURED} tin: thêm tin mới hơn thì tin nổi bật cũ nhất sẽ không còn hiện.</p>}
       </section>
 
       <section className="panel muted-panel">

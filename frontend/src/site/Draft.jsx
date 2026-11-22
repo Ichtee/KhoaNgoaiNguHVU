@@ -65,9 +65,7 @@ export default function Draft() {
             <h2 className="label related">Bài sẽ hiện ở trang chủ như sau</h2>
             <div className="draft-home">
               {f.pinned && <div><h3 className="label">Thông báo quan trọng</h3><ul className="rows"><DateLink post={post} /></ul></div>}
-              {f.isFeatured
-                ? <Slides posts={[post]} cats={cats} />
-                : <div><h3 className="label">Tin mới</h3><ul className="rows"><DateLink post={post} /></ul></div>}
+              {f.pinned || <Slides posts={[post]} cats={cats} />}
             </div>
             <h2 className="label related">Trong danh sách của mục</h2>
             <div className="grid"><PostCard post={post} cat={cat} /></div>

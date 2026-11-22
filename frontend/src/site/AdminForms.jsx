@@ -218,7 +218,6 @@ export function PostForm({ cats, initial, onSaved, onCancel }) {
         </select>
       </Step>
       <Step n="5" title="Hiện ở trang chủ" hint="Không bắt buộc.">
-        <label className="check big"><input type="checkbox" checked={f.isFeatured} onChange={set('isFeatured')} /> Đưa lên khối tin nổi bật (ảnh lớn đầu trang chủ)</label>
         <label className="check big"><input type="checkbox" checked={f.pinned} onChange={set('pinned')} /> Ghim lên mục “Thông báo quan trọng”</label>
         {f.pinned && <label className="sub-field">Bỏ ghim sau ngày (để trống = ghim mãi)<input type="date" value={f.pinnedUntil} onChange={set('pinnedUntil')} /></label>}
       </Step>

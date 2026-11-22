@@ -24,7 +24,6 @@ assert.equal(ids({ cat: 'thong-bao-dao-tao' }), '2');
 assert.equal(ids({ time: '7' }), '1');
 assert.equal(ids({ time: '90' }), '1,2');
 assert.equal(ids({ time: 'nam' }), '1,2');
-assert.equal(ids({ status: 'noi-bat' }), '1');
 assert.equal(ids({ status: 'ghim' }), '2');
 assert.equal(ids({ status: 'khong-anh' }), '2');
 assert.equal(ids({ sort: 'cu' }), '3,2,1');

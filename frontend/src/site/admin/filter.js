@@ -4,7 +4,6 @@ const fold = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 const year = (t) => new Date(t).toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 4);
 
 const STATUS = {
-  'noi-bat': (p) => p.isFeatured,
   ghim: (p) => p.pinned,
   'khong-anh': (p) => !p.coverImage
 };
